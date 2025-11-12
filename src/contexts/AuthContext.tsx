@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://ellena-hyperaemic-numbers.ngrok-free.dev" || "http://localhost:3001"
 
   // Función para obtener token desde localStorage o cookies
   const getStoredToken = (): string | null => {
@@ -55,12 +55,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       })
 
-      if (!res.ok) throw new Error("Token inválido")
+      if (!res.ok) {
+        console.warn("Token verification failed:", res.status, res.statusText)
+        return null
+      }
 
       const data = await res.json()
       return data.data?.user || null
     } catch (error) {
-      console.error("Error verificando token:", error)
+      console.error("Error verificando token (backend posiblemente no disponible):", error)
       return null
     }
   }

@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://ellena-hyperaemic-numbers.ngrok-free.dev" || "http://localhost:3001"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -43,9 +43,26 @@ export default function LoginPage() {
       const text = await res.text()
       console.log("[v0] Login response text:", text.substring(0, 200))
 
-      const data = JSON.parse(text)
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch (parseError) {
+        console.error("[v0] Error parsing response:", parseError)
+        throw new Error("Error del servidor - no se pudo procesar la respuesta")
+      }
 
-      if (!res.ok) throw new Error(data.message || "Credenciales incorrectas")
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error("Email o contraseña incorrectos")
+        }
+        const errorMessage = data?.message || `Error ${res.status}: No se pudo iniciar sesión`
+        throw new Error(errorMessage)
+      }
+
+      // Verificar que la respuesta tenga la estructura esperada
+      if (!data?.data?.token || !data?.data?.user) {
+        throw new Error("Error del servidor - respuesta incompleta")
+      }
 
       // Usar el contexto de autenticación para guardar el token y usuario
       login(data.data.token, data.data.user)
@@ -53,7 +70,7 @@ export default function LoginPage() {
       router.push(redirectTo)
     } catch (err: any) {
       console.error("[v0] Error en login:", err)
-      setError(err.message || "Error de login")
+      setError(err.message || "Error desconocido durante el inicio de sesión")
     } finally {
       setLoading(false)
     }
@@ -78,6 +95,12 @@ export default function LoginPage() {
       return
     }
 
+    if (password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres")
+      setLoading(false)
+      return
+    }
+
     try {
       console.log("[v0] Attempting register via proxy")
       const res = await fetch("/api/proxy/auth/register", {
@@ -96,9 +119,27 @@ export default function LoginPage() {
       const text = await res.text()
       console.log("[v0] Register response text:", text.substring(0, 200))
 
-      const data = JSON.parse(text)
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch (parseError) {
+        console.error("[v0] Error parsing response:", parseError)
+        throw new Error("Error del servidor - no se pudo procesar la respuesta")
+      }
 
-      if (!res.ok) throw new Error(data.message || "No se pudo registrar")
+      if (!res.ok) {
+        // Manejo específico de errores del backend
+        if (data?.errorCode === 'EMAIL_EXISTS') {
+          throw new Error("Este email ya está registrado. ¿Quieres iniciar sesión en su lugar?")
+        }
+        const errorMessage = data?.message || `Error ${res.status}: No se pudo completar el registro`
+        throw new Error(errorMessage)
+      }
+
+      // Verificar que la respuesta tenga la estructura esperada
+      if (!data?.data?.token || !data?.data?.user) {
+        throw new Error("Error del servidor - respuesta incompleta")
+      }
 
       // Si registro OK, usar el contexto para login automático
       login(data.data.token, data.data.user)
@@ -106,7 +147,7 @@ export default function LoginPage() {
       router.push(redirectTo)
     } catch (err: any) {
       console.error("[v0] Error en registro:", err)
-      setError(err.message || "Error de registro")
+      setError(err.message || "Error desconocido durante el registro")
     } finally {
       setLoading(false)
     }
@@ -116,7 +157,16 @@ export default function LoginPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-md p-8 bg-white rounded shadow">
         <h1 className="text-2xl font-bold mb-6 text-center">{isRegistering ? "Crear cuenta" : "Iniciar sesión"}</h1>
-        {error && <div className="mb-4 text-red-500 text-center">{error}</div>}
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            <div className="flex items-center">
+              <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">{error}</span>
+            </div>
+          </div>
+        )}
 
         {!isRegistering ? (
           // Formulario de Login

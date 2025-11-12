@@ -4,6 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { AuthProvider } from "@/contexts/AuthContext"
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration"
+import PWAInstallPrompt from "@/components/PWAInstallPrompt"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -11,23 +13,36 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Oldly Fun Music Box",
   description: "Juego de música con cartas QR",
-  generator: "v0.app",
+  manifest: "/manifest.json",
   icons: {
-    icon: [
-      {
-        url: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-    apple: "/apple-icon.png",
+    icon: "/sourcingup-logo.jpg",
+    apple: "/sourcingup-logo.jpg",
+  },
+  themeColor: "#000000",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Music Box",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Oldly Fun Music Box",
+    title: "Oldly Fun Music Box",
+    description: "Juego de música con cartas QR",
+  },
+  twitter: {
+    card: "summary",
+    title: "Oldly Fun Music Box",
+    description: "Juego de música con cartas QR",
   },
 }
 
@@ -37,9 +52,13 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body className={`font-sans antialiased`}>
-        <AuthProvider>{children}</AuthProvider>
+        <ServiceWorkerRegistration />
+        <AuthProvider>
+          {children}
+          <PWAInstallPrompt />
+        </AuthProvider>
         <Analytics />
       </body>
     </html>

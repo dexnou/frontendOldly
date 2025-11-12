@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://ellena-hyperaemic-numbers.ngrok-free.dev" || "http://localhost:3001"
 
 interface GameCard {
   id: string
@@ -45,6 +45,7 @@ export default function PlayPage() {
   const { isLoggedIn, token, user } = useAuth()
   
   console.log('🔍 DEBUG - cardId from URL params:', cardId, 'type:', typeof cardId)
+  console.log('🔍 AUTH DEBUG - isLoggedIn:', isLoggedIn, 'token:', token ? 'present' : 'null', 'user:', user)
   
   const [gameCard, setGameCard] = useState<GameCard | null>(null)
   const [revealedCard, setRevealedCard] = useState<RevealedCard | null>(null)
@@ -59,7 +60,8 @@ export default function PlayPage() {
   const [players, setPlayers] = useState<string[]>([''])
   const [gameId, setGameId] = useState<string | null>(null)
   const [gameParticipants, setGameParticipants] = useState<any[]>([])
-  const [isActiveCompetitiveSession, setIsActiveCompetitiveSession] = useState(false)  
+  const [isActiveCompetitiveSession, setIsActiveCompetitiveSession] = useState(false)
+  const [isActiveCasualSession, setIsActiveCasualSession] = useState(false)  
   // Nuevos estados para el sistema de puntuación
   const [showScoring, setShowScoring] = useState(false)
   const [scoring, setScoring] = useState(false)
@@ -103,7 +105,10 @@ export default function PlayPage() {
       return
     }
 
-    console.log('✅ Valid cardId, loading game and checking for active competitive game')
+    console.log('✅ Valid cardId, loading game and checking for active sessions')
+    
+    // Check for active casual session before doing anything else
+    checkActiveCasualSession()
     
     // First load the card data, then check for active competitive games
     fetchGameCard()
@@ -111,17 +116,85 @@ export default function PlayPage() {
 
   // Separate useEffect to check for active games after gameCard is loaded
   useEffect(() => {
-    if (gameCard && gameCard.deck?.id) {
+    if (gameCard && gameCard.deck?.id && token) {
       console.log('🔍 Card loaded, checking for active competitive game in deck:', gameCard.deck.id)
       checkActiveCompetitiveGame(gameCard.deck.id)
     }
-  }, [gameCard])
+  }, [gameCard, token])
+
+  // Helper function to safely parse JSON responses
+  const safeJsonParse = async (res: Response, context: string) => {
+    try {
+      return await res.json()
+    } catch (jsonError) {
+      console.error(`❌ Failed to parse JSON response in ${context}:`, jsonError)
+      
+      // Try to get text response for debugging
+      try {
+        const textResponse = await res.text()
+        console.error('📄 Raw response:', textResponse.substring(0, 200))
+      } catch (textError) {
+        console.error('❌ Could not read response as text either')
+      }
+      
+      // Handle rate limiting specifically
+      if (res.status === 429) {
+        throw new Error('Demasiadas solicitudes. Por favor espera un momento antes de intentar nuevamente.')
+      }
+      
+      throw new Error(`Error de servidor (${res.status}): Respuesta inválida del servidor`)
+    }
+  }
+
+  // Funciones para manejar sesión casual
+  const startCasualSession = () => {
+    console.log('🎮 Starting casual session')
+    localStorage.setItem('activeCasualSession', 'true')
+    localStorage.setItem('casualSessionStartTime', new Date().toISOString())
+    setGameMode('casual')
+    setIsActiveCasualSession(true)
+    setGameStarted(true)
+  }
+
+  const endCasualSession = () => {
+    console.log('🏁 Ending casual session')
+    localStorage.removeItem('activeCasualSession')
+    localStorage.removeItem('casualSessionStartTime')
+    setIsActiveCasualSession(false)
+    setGameMode(null)
+    setGameStarted(false)
+  }
+
+  const checkActiveCasualSession = () => {
+    const isActive = localStorage.getItem('activeCasualSession') === 'true'
+    const startTime = localStorage.getItem('casualSessionStartTime')
+    
+    if (isActive && startTime) {
+      // Check if session hasn't expired (e.g., 2 hours)
+      const sessionStart = new Date(startTime)
+      const now = new Date()
+      const hoursElapsed = (now.getTime() - sessionStart.getTime()) / (1000 * 60 * 60)
+      
+      if (hoursElapsed < 2) { // 2 hours session timeout
+        console.log('🎮 Resuming active casual session')
+        setGameMode('casual')
+        setIsActiveCasualSession(true)
+        setGameStarted(true)
+        return true
+      } else {
+        console.log('⏰ Casual session expired, clearing')
+        endCasualSession()
+        return false
+      }
+    }
+    return false
+  }
 
   const fetchGameCard = async () => {
     console.log('🎮 fetchGameCard called for cardId:', cardId)
     setLoading(true)
     try {
-      const url = `${BACKEND_URL}/api/cards/${cardId}/play`
+      const url = `/api/proxy/cards/${cardId}/play`
       console.log('🌐 Fetching from URL:', url)
       
       const res = await fetch(url, {
@@ -129,14 +202,18 @@ export default function PlayPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        credentials: "include",
       })
 
       console.log('📡 Response status:', res.status, res.statusText)
-      const data = await res.json()
+      
+      const data = await safeJsonParse(res, 'fetchGameCard')
       console.log('📊 Response data:', data)
 
       if (!res.ok) {
+        if (res.status === 429) {
+          setError("Demasiadas solicitudes. Por favor espera un momento antes de intentar nuevamente.")
+          return
+        }
         if (res.status === 403 && data.needsAccess) {
           setError(`No tienes acceso al mazo "${data.deck?.title}". ¡Actívalo primero!`)
           return
@@ -159,17 +236,23 @@ export default function PlayPage() {
     try {
       console.log('🔍 Checking for active competitive games in deck:', deckId)
       
+      if (!token) {
+        console.error('❌ No authentication token available')
+        return null
+      }
+      
+      console.log('🔑 Using token:', token.substring(0, 20) + '...')
+      
       // Check for active competitive games in this specific deck
-      const res = await fetch(`${BACKEND_URL}/api/game/active-competitive/${deckId}`, {
+      const res = await fetch(`/api/proxy/game/active-competitive/${deckId}`, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        credentials: "include",
       })
 
       if (res.ok) {
-        const data = await res.json()
+        const data = await safeJsonParse(res, 'checkActiveCompetitiveGame')
         if (data.data?.game) {
           console.log('🎯 Found active competitive game in this deck:', data.data.game.id)
           
@@ -194,7 +277,27 @@ export default function PlayPage() {
           console.log('✅ Competitive game state restored for deck', data.data.game.deck.title, 'with', data.data.game.participants.length, 'participants')
         }
       } else {
-        console.log('ℹ️ No active competitive game found in this deck, user can choose mode')
+        let errorData;
+        try {
+          errorData = await safeJsonParse(res, 'checkActiveCompetitiveGame-error')
+        } catch (parseError: any) {
+          console.error('Error parsing error response:', parseError.message)
+          if (res.status === 429) {
+            setError("Demasiadas solicitudes. Por favor espera un momento antes de intentar nuevamente.")
+            return null
+          }
+          errorData = { message: `Error del servidor (${res.status})` }
+        }
+        
+        console.log('❌ Error response:', res.status, errorData)
+        
+        // Only log as error if it's not a 404 (no active game found)
+        if (res.status !== 404) {
+          console.error('Error checking active competitive game:', errorData)
+          setError(`Error verificando juegos activos: ${errorData.message || 'Error desconocido'}`)
+        } else {
+          console.log('ℹ️ No active competitive game found in this deck, user can choose mode')
+        }
       }
     } catch (err: any) {
       console.log('⚠️ Error checking for active games in this deck (this is OK if none exist):', err.message)
@@ -213,7 +316,7 @@ export default function PlayPage() {
   const handleModeSelection = (mode: 'casual' | 'competitive') => {
     setGameMode(mode)
     if (mode === 'casual') {
-      setGameStarted(true)
+      startCasualSession()
     }
     // Para competitive, se mostrará el formulario de jugadores
   }
@@ -244,14 +347,21 @@ export default function PlayPage() {
       return
     }
 
+    if (!token) {
+      console.error('❌ No authentication token available for starting game')
+      setError("Error de autenticación. Por favor, recarga la página.")
+      return
+    }
+
+    console.log('🎮 Starting competitive game with token:', token.substring(0, 20) + '...')
+
     try {
-      const res = await fetch(`${BACKEND_URL}/api/game/start-competitive`, {
+      const res = await fetch(`/api/proxy/game/start-competitive`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        credentials: "include",
         body: JSON.stringify({
           deckId: gameCard?.deck.id,
           participants: validPlayers.map(name => ({ name: name.trim() }))
@@ -289,6 +399,7 @@ export default function PlayPage() {
       
       setGameStarted(true)
     } catch (err: any) {
+      console.error('Error starting competitive game:', err)
       setError(err.message || "Error iniciando juego competitivo")
     }
   }
@@ -302,21 +413,19 @@ export default function PlayPage() {
       
       if (gameMode === 'casual') {
         // Modo casual: usar endpoint que devuelve toda la info inmediatamente
-        res = await fetch(`${BACKEND_URL}/api/cards/${cardId}/casual-play`, {
+        res = await fetch(`/api/proxy/cards/${cardId}/casual-play`, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          credentials: "include",
         })
       } else {
         // Modo competitivo o modo anterior: usar reveal normal
-        res = await fetch(`${BACKEND_URL}/api/cards/${cardId}/reveal`, {
+        res = await fetch(`/api/proxy/cards/${cardId}/reveal`, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          credentials: "include",
         })
       }
 
@@ -378,13 +487,12 @@ export default function PlayPage() {
           participantAnswersState: participantAnswers
         })
 
-        res = await fetch(`${BACKEND_URL}/api/game/${gameId}/submit-competitive-round`, {
+        res = await fetch(`/api/proxy/game/${gameId}/submit-competitive-round`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          credentials: "include",
           body: JSON.stringify({
             cardId: numericCardId,
             participantAnswers: participantAnswersArray
@@ -392,13 +500,12 @@ export default function PlayPage() {
         })
       } else {
         // Modo individual (scoreCard anterior)
-        res = await fetch(`${BACKEND_URL}/api/game/score-card`, {
+        res = await fetch(`/api/proxy/game/score-card`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          credentials: "include",
           body: JSON.stringify({
             cardId: numericCardId,
             userKnew
@@ -466,13 +573,12 @@ export default function PlayPage() {
 
   const finishActiveGame = async (gameId: string) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/game/${gameId}/finish`, {
+      const res = await fetch(`/api/proxy/game/${gameId}/finish`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        credentials: "include",
       })
 
       const data = await res.json()
@@ -498,13 +604,12 @@ export default function PlayPage() {
     if (!gameId) return
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/game/${gameId}/finish`, {
+      const res = await fetch(`/api/proxy/game/${gameId}/finish`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        credentials: "include",
       })
 
       const data = await res.json()
@@ -631,6 +736,33 @@ export default function PlayPage() {
                     className="bg-red-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-600 transition-colors"
                   >
                     🏁 Finalizar partida completa
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : isActiveCasualSession && !gameStarted ? (
+            /* Sesión casual activa */
+            <div className="text-center mb-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-md mx-auto">
+                <div className="text-4xl mb-4">🎧</div>
+                <h3 className="text-xl font-semibold mb-3 text-blue-800">Sesión Casual Activa</h3>
+                <p className="text-blue-700 mb-4 text-sm">
+                  Continúas en modo casual. Puedes seguir explorando cartas sin competir por puntos.
+                </p>
+                
+                <div className="grid gap-3">
+                  <button
+                    onClick={() => setGameStarted(true)}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    ▶️ Continuar en modo casual
+                  </button>
+                  
+                  <button
+                    onClick={endCasualSession}
+                    className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+                  >
+                    🏁 Terminar sesión casual
                   </button>
                 </div>
               </div>
@@ -1069,13 +1201,26 @@ export default function PlayPage() {
         <div className="text-center text-blue-200 text-sm">
           <p>Escanea más códigos QR para seguir jugando 🎮</p>
           
+          {/* Botón para finalizar sesión competitiva */}
           {isActiveCompetitiveSession && gameStarted && (
             <div className="mt-4">
               <button
                 onClick={endCompetitiveSession}
                 className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors"
               >
-                🏁 Finalizar partida completa
+                🏁 Finalizar partida competitiva
+              </button>
+            </div>
+          )}
+          
+          {/* Botón para finalizar sesión casual */}
+          {isActiveCasualSession && gameStarted && gameMode === 'casual' && (
+            <div className="mt-4">
+              <button
+                onClick={endCasualSession}
+                className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors"
+              >
+                🎧 Terminar sesión casual
               </button>
             </div>
           )}
@@ -1136,6 +1281,47 @@ export default function PlayPage() {
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Casual Mode Sidebar - Show during casual gameplay */}
+        {gameMode === 'casual' && gameStarted && isActiveCasualSession && (
+          <div className="w-80 bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 h-fit sticky top-4">
+            <div className="text-center mb-6">
+              <h3 className="text-2xl font-bold text-white mb-2">🎧 Modo Casual</h3>
+              <p className="text-blue-200 text-sm">{gameCard?.deck?.title}</p>
+            </div>
+
+            <div className="bg-white/20 rounded-lg p-4 border border-white/30 mb-6">
+              <div className="text-center">
+                <div className="text-4xl mb-3">🎵</div>
+                <h4 className="font-semibold text-white mb-2">Sesión Activa</h4>
+                <p className="text-blue-200 text-sm">
+                  Explorando música sin competir por puntos
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-white/20">
+              <div className="text-center text-blue-200 text-sm mb-4">
+                <p className="mb-2">🎶 Modo relajado</p>
+                <div className="bg-white/10 rounded-lg p-3 mb-4">
+                  <p className="text-xs">
+                    Solo disfruta de la música
+                  </p>
+                  <p className="text-xs mt-1">
+                    Sin presión de puntos
+                  </p>
+                </div>
+              </div>
+              
+              <button
+                onClick={endCasualSession}
+                className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors"
+              >
+                🏁 Terminar sesión casual
+              </button>
             </div>
           </div>
         )}
