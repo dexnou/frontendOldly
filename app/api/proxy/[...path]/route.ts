@@ -29,9 +29,14 @@ async function proxyRequest(request: NextRequest, pathParts: string[], method: s
 
   // Siempre agregar el prefijo api/ porque todos los endpoints del backend están bajo /api
   const fullPath = `api/${path}`
-  const url = `${BACKEND_URL}/${fullPath}`
+  
+  // Preserve query parameters
+  const searchParams = request.nextUrl.searchParams.toString()
+  const queryString = searchParams ? `?${searchParams}` : ''
+  const url = `${BACKEND_URL}/${fullPath}${queryString}`
 
   console.log("[v0] Proxying request to:", url)
+  console.log("[v0] Query params:", searchParams)
   console.log("[v0] Request method:", method)
   console.log("[v0] Request headers:", Object.fromEntries(request.headers.entries()))
   console.log("[v0] BACKEND_URL:", BACKEND_URL)
@@ -95,20 +100,17 @@ async function proxyRequest(request: NextRequest, pathParts: string[], method: s
     console.log("[v0] Response status:", response.status)
     console.log("[v0] Response headers:", Object.fromEntries(response.headers.entries()))
     
-    // Log response body for debugging
-    const responseText = await response.text()
-    console.log("[v0] Response body:", responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""))
-
     // Check if this is a file download based on Content-Disposition header
     const contentDisposition = response.headers.get("Content-Disposition")
     const responseContentType = response.headers.get("Content-Type")
     
     if (contentDisposition && contentDisposition.includes("attachment")) {
-      // This is a file download, preserve binary content - re-fetch as we already consumed the body
-      const fileResponse = await fetch(url, { method, headers, body })
-      const buffer = await fileResponse.arrayBuffer()
+      // This is a file download, preserve binary content
+      const buffer = await response.arrayBuffer()
       
       console.log("[v0] File download detected, size:", buffer.byteLength)
+      console.log("[v0] Content-Type:", responseContentType)
+      console.log("[v0] Content-Disposition:", contentDisposition)
       
       return new NextResponse(buffer, {
         status: response.status,
@@ -119,6 +121,10 @@ async function proxyRequest(request: NextRequest, pathParts: string[], method: s
       })
     } else {
       // Regular response, treat as text/json
+      const responseText = await response.text()
+      console.log("[v0] Regular response, Content-Type:", responseContentType)
+      console.log("[v0] Response body:", responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""))
+      
       return new NextResponse(responseText, {
         status: response.status,
         headers: {

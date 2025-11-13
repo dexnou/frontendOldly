@@ -42,10 +42,10 @@ interface RevealedCard {
 export default function PlayPage() {
   const { cardId } = useParams()
   const router = useRouter()
-  const { isLoggedIn, token, user } = useAuth()
+  const { isLoggedIn, token, user, loading: authLoading } = useAuth()
   
   console.log('🔍 DEBUG - cardId from URL params:', cardId, 'type:', typeof cardId)
-  console.log('🔍 AUTH DEBUG - isLoggedIn:', isLoggedIn, 'token:', token ? 'present' : 'null', 'user:', user)
+  console.log('🔍 AUTH DEBUG - isLoggedIn:', isLoggedIn, 'token:', token ? 'present' : 'null', 'user:', user, 'authLoading:', authLoading)
   
   const [gameCard, setGameCard] = useState<GameCard | null>(null)
   const [revealedCard, setRevealedCard] = useState<RevealedCard | null>(null)
@@ -79,7 +79,13 @@ export default function PlayPage() {
   })
 
   useEffect(() => {
-    console.log('🔍 useEffect triggered with:', { cardId, isLoggedIn, token: !!token })
+    console.log('🔍 useEffect triggered with:', { cardId, isLoggedIn, token: !!token, authLoading })
+    
+    // ✅ FIX: Esperar a que termine la verificación de auth antes de redirigir
+    if (authLoading) {
+      console.log('⏳ Auth still loading, waiting...')
+      return
+    }
     
     if (!isLoggedIn) {
       console.log('🚪 Not logged in, redirecting...')
@@ -112,7 +118,7 @@ export default function PlayPage() {
     
     // First load the card data, then check for active competitive games
     fetchGameCard()
-  }, [cardId, isLoggedIn, token])
+  }, [cardId, isLoggedIn, token, authLoading])
 
   // Separate useEffect to check for active games after gameCard is loaded
   useEffect(() => {
@@ -636,12 +642,12 @@ export default function PlayPage() {
     }
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando juego...</p>
+          <p className="text-gray-600">{authLoading ? 'Verificando autenticación...' : 'Cargando juego...'}</p>
         </div>
       </div>
     )
@@ -1215,7 +1221,8 @@ export default function PlayPage() {
           
           {/* Botón para finalizar sesión casual */}
           {isActiveCasualSession && gameStarted && gameMode === 'casual' && (
-            <div className="mt-4">
+            // Footer button: visible only on small screens to avoid duplicate with sidebar on wide screens
+            <div className="mt-4 md:hidden">
               <button
                 onClick={endCasualSession}
                 className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors"
@@ -1318,7 +1325,8 @@ export default function PlayPage() {
               
               <button
                 onClick={endCasualSession}
-                className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors"
+                // Sidebar button: hidden on small screens, visible from md and up
+                className="w-full hidden md:block bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors"
               >
                 🏁 Terminar sesión casual
               </button>

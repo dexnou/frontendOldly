@@ -78,12 +78,6 @@ export default function AdminLoginPage() {
               {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
             </Button>
           </form>
-          <div className="text-center mt-4">
-            <Link href="/admin/register" className="text-sm text-zinc-400 hover:text-white">
-              ¿No tienes cuenta? Regístrate
-            </Link>
-          </div>
-          {/* </CHANGE> */}
         </CardContent>
       </Card>
     </div>
