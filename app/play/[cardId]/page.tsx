@@ -564,7 +564,7 @@ export default function PlayPage() {
         <div className={`${(gameMode === 'competitive' || gameMode === 'competitive_turns') && gameStarted ? 'flex-1' : 'max-w-2xl mx-auto w-full'}`}>
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">🎵 Oldly Fun Music Box</h1>
+            <h1 className="text-4xl font-bold text-white mb-2">🎵 Oldy Funs Music Box</h1>
             <p className="text-blue-200">¡Adivina la canción!</p>
             {user && <p className="text-green-300 text-sm mt-2">Jugando como: {user.firstname}</p>}
           </div>

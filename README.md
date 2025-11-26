@@ -1,4 +1,4 @@
-# Oldly Fun Music Box - Frontend
+# Oldy Funs Music Box - Frontend
 
 Aplicación web frontend para el juego musical de trivias con sistema de puntuación, autenticación OAuth y Progressive Web App (PWA).
 
@@ -74,7 +74,7 @@ Crear archivo `.env.local`:
 NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
 
 # Configuración adicional
-NEXT_PUBLIC_APP_NAME="Oldly Fun Music Box"
+NEXT_PUBLIC_APP_NAME="Oldy Fans Fun Music Box"
 NEXT_PUBLIC_APP_DESCRIPTION="Juego de música con cartas QR"
 ```
 
@@ -615,4 +615,4 @@ Para soporte y preguntas:
 
 ---
 
-**Oldly Fun Music Box Frontend** - Progressive Web App desarrollada con ❤️ por el equipo de dexnou
+**Oldy Fans Fun Music Box Frontend** - Progressive Web App desarrollada con ❤️ por el equipo de dexnou

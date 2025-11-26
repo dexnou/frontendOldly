@@ -11,7 +11,7 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Oldly Fun Music Box",
+  title: "Oldy Funs Music Box",
   description: "Juego de música con cartas QR",
   manifest: "/manifest.json",
   icons: {
@@ -35,13 +35,13 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    siteName: "Oldly Fun Music Box",
-    title: "Oldly Fun Music Box",
+    siteName: "Oldy Fans Fun Music Box",
+    title: "Oldy Fans Fun Music Box",
     description: "Juego de música con cartas QR",
   },
   twitter: {
     card: "summary",
-    title: "Oldly Fun Music Box",
+    title: "Oldy Funs Music Box",
     description: "Juego de música con cartas QR",
   },
 }
