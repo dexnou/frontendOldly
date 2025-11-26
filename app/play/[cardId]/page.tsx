@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
+import { motion, AnimatePresence } from "framer-motion"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://ellena-hyperaemic-numbers.ngrok-free.dev" || "http://localhost:3001"
 
@@ -16,6 +17,10 @@ interface GameCard {
     id: string
     title: string
     theme: string
+    // Labels personalizados
+    labelSong?: string
+    labelArtist?: string
+    labelAlbum?: string
   }
   hint: string
 }
@@ -44,9 +49,6 @@ export default function PlayPage() {
   const router = useRouter()
   const { isLoggedIn, token, user, loading: authLoading } = useAuth()
   
-  console.log('🔍 DEBUG - cardId from URL params:', cardId, 'type:', typeof cardId)
-  console.log('🔍 AUTH DEBUG - isLoggedIn:', isLoggedIn, 'token:', token ? 'present' : 'null', 'user:', user, 'authLoading:', authLoading)
-  
   const [gameCard, setGameCard] = useState<GameCard | null>(null)
   const [revealedCard, setRevealedCard] = useState<RevealedCard | null>(null)
   const [loading, setLoading] = useState(true)
@@ -55,25 +57,23 @@ export default function PlayPage() {
   const [gameStarted, setGameStarted] = useState(false)
   const [answered, setAnswered] = useState(false)
   
-  // Estados para selección de modo (Actualizado para incluir competitive_turns)
   const [gameMode, setGameMode] = useState<'casual' | 'competitive' | 'competitive_turns' | null>(null)
   const [players, setPlayers] = useState<string[]>([''])
   const [gameId, setGameId] = useState<string | null>(null)
   const [gameParticipants, setGameParticipants] = useState<any[]>([])
-  const [currentTurnParticipantId, setCurrentTurnParticipantId] = useState<string | null>(null) // NUEVO
+  const [currentTurnParticipantId, setCurrentTurnParticipantId] = useState<string | null>(null)
   const [isActiveCompetitiveSession, setIsActiveCompetitiveSession] = useState(false)
   const [isActiveCasualSession, setIsActiveCasualSession] = useState(false)  
   
-  // Estados para el sistema de puntuación
+  const [cardAlreadyPlayedByCurrent, setCardAlreadyPlayedByCurrent] = useState(false)
+
   const [showScoring, setShowScoring] = useState(false)
   const [scoring, setScoring] = useState(false)
   const [scoreResult, setScoreResult] = useState<any>(null)
   const [participantAnswers, setParticipantAnswers] = useState<{[key: string]: {songKnew: boolean, artistKnew: boolean, albumKnew: boolean}}>({})
   
-  // Estado para manejar juegos activos
   const [activeGameError, setActiveGameError] = useState<{gameId: string, message: string} | null>(null)
   
-  // Estados anteriores (mantener para compatibilidad con modo individual/casual)
   const [userKnew, setUserKnew] = useState({
     songKnew: false,
     artistKnew: false,
@@ -81,38 +81,27 @@ export default function PlayPage() {
   })
 
   useEffect(() => {
-    console.log('🔍 useEffect triggered with:', { cardId, isLoggedIn, token: !!token, authLoading })
-    
-    if (authLoading) {
-      console.log('⏳ Auth still loading, waiting...')
-      return
-    }
+    if (authLoading) return
     
     if (!isLoggedIn) {
-      console.log('🚪 Not logged in, redirecting...')
       router.push(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
       return
     }
 
     if (!cardId) {
-      console.log('❌ No cardId found in URL params')
       setError('ID de carta no encontrado en la URL')
       setLoading(false)
       return
     }
 
-    // Validate cardId
     const isNumericId = !isNaN(parseInt(cardId as string))
     const isQrToken = typeof cardId === 'string' && cardId.length === 16
     
     if (!isNumericId && !isQrToken) {
-      console.log('❌ Invalid cardId format:', cardId, 'length:', cardId.length)
       setError('Formato de carta inválido. Debe ser un ID numérico o token QR válido.')
       setLoading(false)
       return
     }
-
-    console.log('✅ Valid cardId, loading game and checking for active sessions')
     
     checkActiveCasualSession()
     fetchGameCard()
@@ -120,22 +109,27 @@ export default function PlayPage() {
 
   useEffect(() => {
     if (gameCard && gameCard.deck?.id && token) {
-      console.log('🔍 Card loaded, checking for active competitive game in deck:', gameCard.deck.id)
       checkActiveCompetitiveGame(gameCard.deck.id)
     }
   }, [gameCard, token])
+
+  useEffect(() => {
+    if (gameMode === 'competitive_turns' && currentTurnParticipantId && gameParticipants.length > 0 && gameCard) {
+      const currentParticipant = gameParticipants.find(p => p.id.toString() === currentTurnParticipantId.toString())
+      if (currentParticipant && currentParticipant.playedCardIds) {
+        const cardIdInt = parseInt(gameCard.id)
+        const hasPlayed = currentParticipant.playedCardIds.includes(cardIdInt)
+        setCardAlreadyPlayedByCurrent(hasPlayed)
+      }
+    } else {
+      setCardAlreadyPlayedByCurrent(false)
+    }
+  }, [currentTurnParticipantId, gameParticipants, gameCard, gameMode])
 
   const safeJsonParse = async (res: Response, context: string) => {
     try {
       return await res.json()
     } catch (jsonError) {
-      console.error(`❌ Failed to parse JSON response in ${context}:`, jsonError)
-      try {
-        const textResponse = await res.text()
-        console.error('📄 Raw response:', textResponse.substring(0, 200))
-      } catch (textError) {
-        console.error('❌ Could not read response as text either')
-      }
       if (res.status === 429) {
         throw new Error('Demasiadas solicitudes. Por favor espera un momento antes de intentar nuevamente.')
       }
@@ -144,7 +138,6 @@ export default function PlayPage() {
   }
 
   const startCasualSession = () => {
-    console.log('🎮 Starting casual session')
     localStorage.setItem('activeCasualSession', 'true')
     localStorage.setItem('casualSessionStartTime', new Date().toISOString())
     setGameMode('casual')
@@ -153,12 +146,13 @@ export default function PlayPage() {
   }
 
   const endCasualSession = () => {
-    console.log('🏁 Ending casual session')
     localStorage.removeItem('activeCasualSession')
     localStorage.removeItem('casualSessionStartTime')
     setIsActiveCasualSession(false)
     setGameMode(null)
     setGameStarted(false)
+    setAnswered(false)
+    setRevealedCard(null)
   }
 
   const checkActiveCasualSession = () => {
@@ -171,13 +165,11 @@ export default function PlayPage() {
       const hoursElapsed = (now.getTime() - sessionStart.getTime()) / (1000 * 60 * 60)
       
       if (hoursElapsed < 2) {
-        console.log('🎮 Resuming active casual session')
         setGameMode('casual')
         setIsActiveCasualSession(true)
         setGameStarted(true)
         return true
       } else {
-        console.log('⏰ Casual session expired, clearing')
         endCasualSession()
         return false
       }
@@ -186,7 +178,6 @@ export default function PlayPage() {
   }
 
   const fetchGameCard = async () => {
-    console.log('🎮 fetchGameCard called for cardId:', cardId)
     setLoading(true)
     try {
       const url = `/api/proxy/cards/${cardId}/play`
@@ -234,16 +225,13 @@ export default function PlayPage() {
       if (res.ok) {
         const data = await safeJsonParse(res, 'checkActiveCompetitiveGame')
         if (data.data?.game) {
-          console.log('🎯 Found active competitive game:', data.data.game.id, 'Mode:', data.data.game.mode)
-          
-          setGameMode(data.data.game.mode) // Restores 'competitive' or 'competitive_turns'
+          setGameMode(data.data.game.mode)
           setGameId(data.data.game.id)
           setGameParticipants(data.data.game.participants)
-          setCurrentTurnParticipantId(data.data.game.currentTurnParticipantId) // NUEVO: Restaurar turno actual
+          setCurrentTurnParticipantId(data.data.game.currentTurnParticipantId)
           setGameStarted(true)
           setIsActiveCompetitiveSession(true)
           
-          // Initialize answers
           const initialAnswers: {[key: string]: {songKnew: boolean, artistKnew: boolean, albumKnew: boolean}} = {}
           data.data.game.participants.forEach((participant: any) => {
             initialAnswers[participant.id] = {
@@ -253,11 +241,6 @@ export default function PlayPage() {
             }
           })
           setParticipantAnswers(initialAnswers)
-        }
-      } else {
-        if (res.status !== 404) {
-           const errorData = await safeJsonParse(res, 'checkActiveCompetitiveGame-error').catch(() => ({}))
-           console.error('Error checking active competitive game:', errorData)
         }
       }
     } catch (err: any) {
@@ -321,7 +304,7 @@ export default function PlayPage() {
         body: JSON.stringify({
           deckId: gameCard?.deck.id,
           participants: validPlayers.map(name => ({ name: name.trim() })),
-          mode: gameMode // Enviamos 'competitive' o 'competitive_turns'
+          mode: gameMode
         })
       })
 
@@ -340,7 +323,7 @@ export default function PlayPage() {
 
       setGameId(data.data.game.id)
       setGameParticipants(data.data.game.participants)
-      setCurrentTurnParticipantId(data.data.game.currentTurnParticipantId) // NUEVO: Guardar turno inicial
+      setCurrentTurnParticipantId(data.data.game.currentTurnParticipantId)
       setIsActiveCompetitiveSession(true)
       
       const initialAnswers: {[key: string]: {songKnew: boolean, artistKnew: boolean, albumKnew: boolean}} = {}
@@ -384,7 +367,6 @@ export default function PlayPage() {
       setRevealedCard(data.data.card)
       setAnswered(true)
       
-      // Mostrar puntuación si es competitivo o competitivo por turnos
       if (gameMode === 'competitive' || gameMode === 'competitive_turns') {
         setShowScoring(true)
       }
@@ -408,7 +390,6 @@ export default function PlayPage() {
     try {
       let res;
       
-      // --- MODO COMPETITIVO POR TURNOS ---
       if (gameMode === 'competitive_turns' && gameId) {
         if (!currentTurnParticipantId) throw new Error('Error de turno: No hay jugador activo')
 
@@ -420,12 +401,11 @@ export default function PlayPage() {
           },
           body: JSON.stringify({
             cardId: numericCardId,
-            participantId: currentTurnParticipantId, // ID del jugador actual
-            userKnew: participantAnswers[currentTurnParticipantId] // Respuestas solo de este jugador
+            participantId: currentTurnParticipantId,
+            userKnew: participantAnswers[currentTurnParticipantId]
           })
         })
 
-      // --- MODO COMPETITIVO CLÁSICO (TODOS A LA VEZ) ---
       } else if (gameMode === 'competitive' && gameId) {
         const participantAnswersArray = Object.entries(participantAnswers).map(([participantId, answers]) => ({
           participantId: parseInt(participantId),
@@ -448,7 +428,6 @@ export default function PlayPage() {
           })
         })
       } else {
-        // Fallback para modo antiguo (si quedara alguno)
         res = await fetch(`/api/proxy/game/score-card`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -463,11 +442,9 @@ export default function PlayPage() {
       setScoreResult(data.data)
       setShowScoring(false)
       
-      // Actualizar estado del juego con la respuesta
       if (data.data.game?.participants) {
         setGameParticipants(data.data.game.participants)
       }
-      // Actualizar turno si viene en la respuesta (para modo por turnos)
       if (data.data.game?.nextTurn?.participantId) {
         setCurrentTurnParticipantId(data.data.game.nextTurn.participantId)
       } else if (data.data.game?.currentTurnParticipantId) {
@@ -539,7 +516,7 @@ export default function PlayPage() {
       setGameMode(null)
       setGameId(null)
       setGameParticipants([])
-      setCurrentTurnParticipantId(null) // Reset turn
+      setCurrentTurnParticipantId(null)
       setGameStarted(false)
       setIsActiveCompetitiveSession(false)
       setParticipantAnswers({})
@@ -603,7 +580,7 @@ export default function PlayPage() {
             </div>
           </div>
 
-          {/* PANTALLA DE SESIÓN ACTIVA (RESTORE SESSION) */}
+          {/* PANTALLA DE SESIÓN ACTIVA */}
           {isActiveCompetitiveSession && !gameStarted ? (
             <div className="text-center mb-6">
               <div className="bg-green-50 border border-green-200 rounded-lg p-6 max-w-md mx-auto">
@@ -634,6 +611,7 @@ export default function PlayPage() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-md mx-auto">
                 <div className="text-4xl mb-4">🎧</div>
                 <h3 className="text-xl font-semibold mb-3 text-blue-800">Sesión Casual Activa</h3>
+                <p className="text-blue-700 mb-4 text-sm">Explorando música sin competir por puntos</p>
                 <div className="grid gap-3">
                   <button onClick={() => setGameStarted(true)} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">▶️ Continuar en modo casual</button>
                   <button onClick={endCasualSession} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors">🏁 Terminar sesión casual</button>
@@ -641,7 +619,7 @@ export default function PlayPage() {
               </div>
             </div>
           ) : !gameMode ? (
-            /* SELECCIÓN DE MODO DE JUEGO */
+            /* SELECCIÓN DE MODO */
             <div className="text-center">
               <div className="text-6xl mb-4">🎯</div>
               <h3 className="text-2xl font-semibold mb-6">¿Cómo quieres jugar?</h3>
@@ -657,7 +635,6 @@ export default function PlayPage() {
                   <p className="text-green-100 text-sm">Todos adivinan la misma canción y suman puntos.</p>
                 </button>
 
-                {/* NUEVO BOTÓN PARA MODO POR TURNOS */}
                 <button onClick={() => handleModeSelection('competitive_turns')} className="bg-purple-600 text-white p-6 rounded-xl text-left hover:bg-purple-700 transition-colors shadow-lg">
                   <div className="flex items-center mb-2"><span className="text-3xl mr-3">📱</span><h4 className="text-xl font-bold">Pasar el Celular</h4></div>
                   <p className="text-purple-100 text-sm">Juegan uno por uno. Ideal para un solo dispositivo.</p>
@@ -717,37 +694,53 @@ export default function PlayPage() {
           ) : !answered ? (
             /* PLAYING */
             <div className="text-center">
-              {/* Mostrar turno si es modo por turnos */}
-              {gameMode === 'competitive_turns' && currentTurnParticipantId && (
-                <div className="mb-6 bg-purple-100 border-2 border-purple-300 rounded-xl p-4 animate-pulse">
-                  <p className="text-sm text-purple-800 font-bold uppercase tracking-wider mb-1">Turno de</p>
-                  <h3 className="text-3xl font-extrabold text-purple-900">
-                    {gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}
-                  </h3>
+              {/* BLOQUEO SI YA JUGÓ */}
+              {cardAlreadyPlayedByCurrent ? (
+                <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-8 shadow-lg animate-in fade-in zoom-in duration-300">
+                   <div className="text-5xl mb-4">🚫</div>
+                   <h3 className="text-xl font-bold text-yellow-800 mb-2">¡Ya jugaste esta carta!</h3>
+                   <p className="text-yellow-700 mb-6">
+                     <strong>{gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}</strong>, ya adivinaste esta canción anteriormente.
+                   </p>
+                   <p className="text-sm text-gray-600 mb-4">
+                     Escanea una carta nueva o pásale el turno al siguiente jugador.
+                   </p>
                 </div>
+              ) : (
+                /* Pantalla normal de juego */
+                <>
+                  {gameMode === 'competitive_turns' && currentTurnParticipantId && (
+                    <div className="mb-6 bg-purple-100 border-2 border-purple-300 rounded-xl p-4 animate-pulse">
+                      <p className="text-sm text-purple-800 font-bold uppercase tracking-wider mb-1">Turno de</p>
+                      <h3 className="text-3xl font-extrabold text-purple-900">
+                        {gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}
+                      </h3>
+                    </div>
+                  )}
+
+                  <h3 className="text-xl font-semibold mb-6">🎵 ¡Escucha y adivina!</h3>
+
+                  <div className="relative w-full max-w-md mx-auto mb-4">
+                    {embedUrl ? (
+                      <div className="relative w-full">
+                        <iframe src={embedUrl} width="100%" height="152" style={{ borderRadius: "12px" }} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" className="rounded-lg shadow-md"></iframe>
+                        <button onClick={handleRevealAnswer} disabled={revealing} className="absolute top-0 left-0 w-full h-full bg-teal-600 text-white rounded-lg text-lg font-bold hover:bg-teal-700 transition-colors shadow-xl flex items-center justify-center" style={{ zIndex: 10, clipPath: "polygon(0 0, 85% 0, 85% 30%, 100% 30%, 100% 70%, 85% 70%, 85% 100%, 0 100%)" }}>
+                          {revealing ? "Revelando..." : "🔍 Revelar Respuesta"}
+                        </button>
+                      </div>
+                    ) : gameCard.previewUrl ? (
+                      <div className="w-full flex justify-center">
+                        <audio controls className="w-full"><source src={gameCard.previewUrl} type="audio/mpeg" />Tu navegador no soporta el elemento de audio.</audio>
+                      </div>
+                    ) : (
+                      <div className="w-full p-4 bg-yellow-100 rounded-lg"><p className="text-yellow-800">⚠️ Audio no disponible para esta carta</p></div>
+                    )}
+                  </div>
+                </>
               )}
-
-              <h3 className="text-xl font-semibold mb-6">🎵 ¡Escucha y adivina!</h3>
-
-              <div className="relative w-full max-w-md mx-auto mb-4">
-                {embedUrl ? (
-                  <div className="relative w-full">
-                    <iframe src={embedUrl} width="100%" height="152" style={{ borderRadius: "12px" }} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" className="rounded-lg shadow-md"></iframe>
-                    <button onClick={handleRevealAnswer} disabled={revealing} className="absolute top-0 left-0 w-full h-full bg-teal-600 text-white rounded-lg text-lg font-bold hover:bg-teal-700 transition-colors shadow-xl flex items-center justify-center" style={{ zIndex: 10, clipPath: "polygon(0 0, 85% 0, 85% 30%, 100% 30%, 100% 70%, 85% 70%, 85% 100%, 0 100%)" }}>
-                      {revealing ? "Revelando..." : "🔍 Revelar Respuesta"}
-                    </button>
-                  </div>
-                ) : gameCard.previewUrl ? (
-                  <div className="w-full flex justify-center">
-                    <audio controls className="w-full"><source src={gameCard.previewUrl} type="audio/mpeg" />Tu navegador no soporta el elemento de audio.</audio>
-                  </div>
-                ) : (
-                  <div className="w-full p-4 bg-yellow-100 rounded-lg"><p className="text-yellow-800">⚠️ Audio no disponible para esta carta</p></div>
-                )}
-              </div>
             </div>
           ) : (
-            /* ANSWER REVEALED & SCORING */
+            /* ANSWER REVEALED */
             <div className="text-center">
               <div className="text-6xl mb-4">🎉</div>
               <h3 className="text-2xl font-bold text-green-600 mb-6">¡Respuesta revelada!</h3>
@@ -766,11 +759,9 @@ export default function PlayPage() {
                 </div>
               )}
 
-              {/* SCORING UI */}
+              {/* SCORING UI CON LABELS DINÁMICOS */}
               {(gameMode === 'competitive' || gameMode === 'competitive_turns') && showScoring && (
                 <div className="mt-6 p-6 bg-blue-50 rounded-lg border-2 border-blue-200">
-                  
-                  {/* Titulo dinámico según modo */}
                   <h4 className="text-xl font-bold text-blue-800 mb-4 flex items-center justify-center">
                     <span className="mr-2">🎯</span>
                     {gameMode === 'competitive_turns' 
@@ -780,7 +771,6 @@ export default function PlayPage() {
                   
                   <div className="space-y-6 text-left">
                     {gameParticipants
-                      // En modo turnos, FILTRAR solo al jugador actual
                       .filter(p => gameMode !== 'competitive_turns' || p.id == currentTurnParticipantId)
                       .map((participant) => (
                       <div key={participant.id} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
@@ -790,21 +780,32 @@ export default function PlayPage() {
                         </h5>
                         
                         <div className="space-y-3">
-                          {/* Checkboxes de puntuación */}
+                          {/* DYNAMIC LABEL 1 */}
                           <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
                             <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.songKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'songKnew')} />
-                            <div className="flex items-center"><span className="text-2xl mr-2">🎵</span><div><div className="font-semibold text-gray-800">Canción</div><div className="text-sm text-gray-600">"{revealedCard?.songName}"</div></div></div>
+                            <div className="flex items-center"><span className="text-2xl mr-2">🎵</span><div>
+                              <div className="font-semibold text-gray-800">{gameCard?.deck?.labelSong || "Canción"}</div>
+                              <div className="text-sm text-gray-600">"{revealedCard?.songName}"</div>
+                            </div></div>
                           </label>
                           
+                          {/* DYNAMIC LABEL 2 */}
                           <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
                             <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.artistKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'artistKnew')} />
-                            <div className="flex items-center"><span className="text-2xl mr-2">🎤</span><div><div className="font-semibold text-gray-800">Artista</div><div className="text-sm text-gray-600">"{revealedCard?.artist.name}"</div></div></div>
+                            <div className="flex items-center"><span className="text-2xl mr-2">🎤</span><div>
+                              <div className="font-semibold text-gray-800">{gameCard?.deck?.labelArtist || "Artista"}</div>
+                              <div className="text-sm text-gray-600">"{revealedCard?.artist.name}"</div>
+                            </div></div>
                           </label>
                           
+                          {/* DYNAMIC LABEL 3 */}
                           {revealedCard?.album && (
                             <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
                               <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.albumKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'albumKnew')} />
-                              <div className="flex items-center"><span className="text-2xl mr-2">💿</span><div><div className="font-semibold text-gray-800">Álbum</div><div className="text-sm text-gray-600">"{revealedCard?.album.title}"</div></div></div>
+                              <div className="flex items-center"><span className="text-2xl mr-2">💿</span><div>
+                                <div className="font-semibold text-gray-800">{gameCard?.deck?.labelAlbum || "Álbum"}</div>
+                                <div className="text-sm text-gray-600">"{revealedCard?.album.title}"</div>
+                              </div></div>
                             </label>
                           )}
                         </div>
@@ -812,11 +813,7 @@ export default function PlayPage() {
                     ))}
                   </div>
                   
-                  <button
-                    onClick={handleSubmitScore}
-                    disabled={scoring}
-                    className="w-full bg-green-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
-                  >
+                  <button onClick={handleSubmitScore} disabled={scoring} className="w-full bg-green-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6">
                     {scoring ? "Calculando..." : "✅ Confirmar Puntos"}
                   </button>
                 </div>
@@ -825,29 +822,21 @@ export default function PlayPage() {
               {/* RESULTADO DE PUNTUACIÓN */}
               {(gameMode === 'competitive' || gameMode === 'competitive_turns') && scoreResult && (
                 <div className="mt-6 p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
-                  
-                  {/* Mostrar siguiente turno si es modo turnos */}
                   {gameMode === 'competitive_turns' && scoreResult.game?.nextTurn && (
                     <div className="mb-6 bg-yellow-100 border-l-4 border-yellow-500 p-4 text-left">
                       <p className="text-sm font-bold text-yellow-700 uppercase">Siguiente jugador</p>
                       <p className="text-2xl font-extrabold text-yellow-900">👉 {scoreResult.game.nextTurn.participantName}</p>
                     </div>
                   )}
-
                   <h4 className="text-2xl font-bold text-green-800 mb-6 flex items-center"><span className="mr-2">🏆</span>Resultados</h4>
-                  
-                  {/* Renderizar resultados individuales (ahora soporta array o objeto único según endpoint) */}
                   {(scoreResult.round?.participantResults || [scoreResult.round]).map((result: any) => {
-                    // Fix para soportar ambos formatos de respuesta
                     const pName = result.participantName || gameParticipants.find(p => p.id == result.participantId)?.name;
-                    
                     return (
                       <div key={result.participantId} className="mb-4 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
                         <h5 className="text-lg font-bold text-gray-800 mb-2 flex justify-between">
                           <span>👤 {pName}</span>
                           <span className="text-green-600">+{result.pointsEarned || result.points} pts</span>
                         </h5>
-                        {/* Desglose simple */}
                         <div className="text-sm text-gray-600 flex justify-between px-4">
                           <span>🎵 {result.answers?.songKnew || result.userKnew?.songKnew ? '✅' : '❌'}</span>
                           <span>🎤 {result.answers?.artistKnew || result.userKnew?.artistKnew ? '✅' : '❌'}</span>
@@ -859,6 +848,15 @@ export default function PlayPage() {
                 </div>
               )}
 
+              {/* MENSAJE MODO CASUAL */}
+              {gameMode === 'casual' && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200 text-center">
+                  <h4 className="text-lg font-semibold text-blue-800 mb-2">🎧 Modo Casual</h4>
+                  <p className="text-blue-700 mb-4">¡Solo disfruta la música! No se calculan puntos en este modo.</p>
+                  <button onClick={endCasualSession} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors w-full">🏁 Terminar sesión casual</button>
+                </div>
+              )}
+
               <button onClick={handlePlayAgain} className="bg-purple-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors mt-6">🏠 Volver al inicio</button>
             </div>
           )}
@@ -866,57 +864,88 @@ export default function PlayPage() {
 
         {/* Footer */}
         <div className="text-center text-blue-200 text-sm">
-          {/* Botón para finalizar sesión */}
           {isActiveCompetitiveSession && gameStarted && (
             <div className="mt-4">
               <button onClick={endCompetitiveSession} className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors">🏁 Finalizar partida competitiva</button>
             </div>
           )}
+          {isActiveCasualSession && gameStarted && gameMode === 'casual' && (
+            <div className="mt-4 md:hidden">
+               <button onClick={endCasualSession} className="bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-600 transition-colors">🏁 Terminar sesión casual</button>
+            </div>
+          )}
         </div>
         </div>
 
-        {/* LIVE SCOREBOARD SIDEBAR */}
+        {/* SIDEBAR COMPETITIVO ANIMADO */}
         {(gameMode === 'competitive' || gameMode === 'competitive_turns') && gameStarted && gameParticipants.length > 0 && (
           <div className="w-80 bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 h-fit sticky top-4 hidden lg:block">
             <div className="text-center mb-6">
               <h3 className="text-2xl font-bold text-white mb-2">🏆 Marcador</h3>
               <p className="text-blue-200 text-sm">{gameCard?.deck?.title}</p>
             </div>
-
-            <div className="space-y-3">
-              {gameParticipants
-                .sort((a, b) => b.totalPoints - a.totalPoints)
-                .map((participant, index) => (
-                  <div 
-                    key={participant.id} 
-                    className={`
-                      bg-white/20 rounded-lg p-4 border transition-all
-                      ${gameMode === 'competitive_turns' && participant.id == currentTurnParticipantId 
-                        ? 'border-yellow-400 ring-2 ring-yellow-400 scale-105 bg-white/30' // Resaltar turno actual
-                        : 'border-white/30'}
-                    `}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        {/* Icono de turno o medalla */}
-                        <span className="text-2xl">
-                          {gameMode === 'competitive_turns' && participant.id == currentTurnParticipantId 
-                            ? '👉' 
-                            : (index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅')}
-                        </span>
-                        <div>
-                          <p className={`font-semibold ${participant.id == currentTurnParticipantId ? 'text-yellow-300' : 'text-white'}`}>
-                            {participant.name}
-                          </p>
-                          <p className="text-xs text-blue-200">{participant.totalRounds} rondas</p>
+            <div className="space-y-3 relative">
+              <AnimatePresence mode="popLayout">
+                {gameParticipants
+                  .sort((a, b) => b.totalPoints - a.totalPoints)
+                  .map((participant, index) => (
+                    <motion.div 
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ 
+                        opacity: 1, 
+                        y: 0,
+                        scale: gameMode === 'competitive_turns' && participant.id == currentTurnParticipantId ? 1.03 : 1,
+                      }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                      key={participant.id} 
+                      className={`
+                        rounded-lg p-4 border
+                        ${gameMode === 'competitive_turns' && participant.id == currentTurnParticipantId 
+                          ? 'bg-white/30 border-yellow-400 ring-2 ring-yellow-400 z-10' 
+                          : 'bg-white/20 border-white/30'}
+                      `}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-2xl">
+                            {gameMode === 'competitive_turns' && participant.id == currentTurnParticipantId 
+                              ? '👉' 
+                              : (index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅')}
+                          </span>
+                          <div>
+                            <p className={`font-semibold ${participant.id == currentTurnParticipantId ? 'text-yellow-300' : 'text-white'}`}>
+                              {participant.name}
+                            </p>
+                            <p className="text-xs text-blue-200">{participant.totalRounds} rondas</p>
+                          </div>
                         </div>
+                        <div className="text-right"><p className="text-2xl font-bold text-white">{participant.totalPoints}</p></div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-white">{participant.totalPoints}</p>
-                      </div>
-                    </div>
-                  </div>
+                    </motion.div>
                 ))}
+              </AnimatePresence>
+            </div>
+          </div>
+        )}
+
+        {/* SIDEBAR CASUAL */}
+        {gameMode === 'casual' && gameStarted && isActiveCasualSession && (
+          <div className="w-80 bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 h-fit sticky top-4 hidden lg:block">
+            <div className="text-center mb-6">
+              <h3 className="text-2xl font-bold text-white mb-2">🎧 Modo Casual</h3>
+              <p className="text-blue-200 text-sm">{gameCard?.deck?.title}</p>
+            </div>
+            <div className="bg-white/20 rounded-lg p-4 border border-white/30 mb-6">
+              <div className="text-center">
+                <div className="text-4xl mb-3">🎵</div>
+                <h4 className="font-semibold text-white mb-2">Sesión Activa</h4>
+                <p className="text-blue-200 text-sm">Explorando música sin competir por puntos</p>
+              </div>
+            </div>
+            <div className="mt-6 pt-4 border-t border-white/20">
+               <button onClick={endCasualSession} className="w-full bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-600 transition-colors">🏁 Terminar sesión casual</button>
             </div>
           </div>
         )}
@@ -924,4 +953,3 @@ export default function PlayPage() {
     </div>
   )
 }
-    

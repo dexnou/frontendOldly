@@ -9,33 +9,44 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Edit, Save, X, Trash2 } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Plus, Pencil, Save, X } from "lucide-react"
 
 interface Deck {
   id: number
   title: string
   description: string
   theme: string
-  buyLink?: string
-  coverImage?: string
+  buyLink: string
+  coverImage: string
   active: boolean
-  cardCount?: number
+  labelSong: string
+  labelArtist: string
+  labelAlbum: string
+  _count?: { cards: number }
 }
 
 export default function AdminDecksPage() {
   const router = useRouter()
   const { admin, isLoading } = useAdminAuth()
   const [decks, setDecks] = useState<Deck[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editingDeck, setEditingDeck] = useState<Partial<Deck> | null>(null)
-  const [isCreating, setIsCreating] = useState(false)
-  const [deletingDeck, setDeletingDeck] = useState<Deck | null>(null)
-  const [deleteWarning, setDeleteWarning] = useState<string | null>(null)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
+
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    theme: "",
+    buyLink: "",
+    coverImage: "",
+    active: true,
+    labelSong: "Canción",
+    labelArtist: "Artista",
+    labelAlbum: "Álbum"
+  })
 
   useEffect(() => {
-    if (!isLoading && !admin) {
-      router.push("/admin/login")
-    }
+    if (!isLoading && !admin) router.push("/admin/login")
   }, [admin, isLoading, router])
 
   useEffect(() => {
@@ -44,315 +55,181 @@ export default function AdminDecksPage() {
 
   const fetchDecks = async () => {
     try {
-      const response = await fetch("/api/proxy/decks")
-      if (response.ok) {
-        const data = await response.json()
-        setDecks(data.data.decks || [])
+      const res = await fetch("/api/proxy/admin/decks", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("adminToken")}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setDecks(data.data.decks)
       }
     } catch (error) {
       console.error("Error fetching decks:", error)
-    } finally {
-      setLoading(false)
     }
   }
 
-  const handleSave = async () => {
-    if (!editingDeck) return
+  const handleSubmit = async () => {
+    const url = editingId 
+      ? `/api/proxy/admin/decks/${editingId}` 
+      : "/api/proxy/admin/decks"
+    
+    const method = editingId ? "PUT" : "POST"
 
     try {
-      const token = localStorage.getItem("adminToken")
-      const response = await fetch("/api/proxy/admin/decks", {
-        method: "POST",
+      const res = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${localStorage.getItem("adminToken")}`
         },
-        body: JSON.stringify(editingDeck),
+        body: JSON.stringify(formData)
       })
 
-      if (response.ok) {
-        await fetchDecks()
-        setEditingDeck(null)
-        setIsCreating(false)
+      const data = await res.json() // Leemos la respuesta
+
+      if (res.ok) {
+        fetchDecks()
+        setIsFormOpen(false)
+        resetForm()
+        alert(editingId ? "Mazo actualizado correctamente" : "Mazo creado correctamente")
       } else {
-        const error = await response.json()
-        alert(error.message || "Error al guardar el mazo")
+        // Mostrar el mensaje específico del backend o los errores de validación
+        if (data.errors && Array.isArray(data.errors)) {
+          const errorMessages = data.errors.map((e: any) => e.msg).join('\n')
+          alert(`Error de validación:\n${errorMessages}`)
+        } else {
+          alert(data.message || "Error al guardar el mazo")
+        }
       }
     } catch (error) {
-      console.error("Error saving deck:", error)
-      alert("Error al guardar el mazo")
+      console.error("Error submitting deck:", error)
+      alert("Error de conexión con el servidor")
     }
   }
 
-  const handleCreate = () => {
-    setIsCreating(true)
-    setEditingDeck({
+  const handleEdit = (deck: Deck) => {
+    setEditingId(deck.id)
+    setFormData({
+      title: deck.title,
+      description: deck.description || "",
+      theme: deck.theme,
+      buyLink: deck.buyLink || "",
+      coverImage: deck.coverImage || "",
+      active: deck.active,
+      labelSong: deck.labelSong || "Canción",
+      labelArtist: deck.labelArtist || "Artista",
+      labelAlbum: deck.labelAlbum || "Álbum"
+    })
+    setIsFormOpen(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const resetForm = () => {
+    setEditingId(null)
+    setFormData({
       title: "",
       description: "",
       theme: "",
       buyLink: "",
       coverImage: "",
       active: true,
+      labelSong: "Canción",
+      labelArtist: "Artista",
+      labelAlbum: "Álbum"
     })
   }
 
-  const handleEdit = (deck: Deck) => {
-    setIsCreating(false)
-    setEditingDeck(deck)
-  }
-
-  const handleCancel = () => {
-    setEditingDeck(null)
-    setIsCreating(false)
-  }
-
-  const handleDelete = async (deck: Deck, force = false) => {
-    try {
-      const token = localStorage.getItem("adminToken")
-      const url = force ? `/api/proxy/admin/decks/${deck.id}?force=true` : `/api/proxy/admin/decks/${deck.id}`
-
-      const response = await fetch(url, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        alert(data.message || "Mazo eliminado exitosamente")
-        setDeletingDeck(null)
-        setDeleteWarning(null)
-        await fetchDecks()
-      } else {
-        // Show warning with suggestion to use force
-        if (data.data?.suggestion) {
-          setDeleteWarning(
-            `${data.message}\n\nCartas: ${data.data.cardCount || 0}\nUsuarios afectados: ${data.data.userCount || 0}\nPartidas: ${data.data.gameCount || 0}`,
-          )
-        } else {
-          alert(data.message || "Error al eliminar el mazo")
-          setDeletingDeck(null)
-        }
-      }
-    } catch (error) {
-      console.error("Error deleting deck:", error)
-      alert("Error al eliminar el mazo")
-    }
-  }
-
-  if (isLoading || !admin) {
-    return null
-  }
+  if (isLoading || !admin) return null
 
   return (
     <div className="flex min-h-screen bg-black">
       <AdminNav />
       <div className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-white">Gestión de Mazos</h1>
-            <Button onClick={handleCreate} className="bg-white text-black hover:bg-zinc-200">
-              <Plus className="w-4 h-4 mr-2" />
-              Crear Mazo
+            <Button onClick={() => { setIsFormOpen(!isFormOpen); resetForm(); }} className="bg-white text-black hover:bg-zinc-200">
+              {isFormOpen ? <><X className="mr-2 h-4 w-4"/> Cancelar</> : <><Plus className="mr-2 h-4 w-4"/> Nuevo Mazo</>}
             </Button>
           </div>
 
-          {deletingDeck && (
+          {isFormOpen && (
             <Card className="bg-zinc-950 border-zinc-800 mb-8">
               <CardHeader>
-                <CardTitle className="text-white">Confirmar Eliminación</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-zinc-300">
-                  ¿Estás seguro que deseas eliminar el mazo <strong>{deletingDeck.title}</strong>?
-                </p>
-                {deleteWarning && (
-                  <div className="bg-yellow-950 border border-yellow-800 rounded p-4">
-                    <p className="text-yellow-200 whitespace-pre-line text-sm">{deleteWarning}</p>
-                  </div>
-                )}
-                <div className="flex gap-3">
-                  {deleteWarning ? (
-                    <>
-                      <Button
-                        onClick={() => handleDelete(deletingDeck, true)}
-                        className="bg-red-600 text-white hover:bg-red-700"
-                      >
-                        Eliminar Forzadamente
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setDeletingDeck(null)
-                          setDeleteWarning(null)
-                        }}
-                        variant="outline"
-                        className="border-zinc-700 text-zinc-300 hover:bg-zinc-900"
-                      >
-                        Cancelar
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button
-                        onClick={() => handleDelete(deletingDeck)}
-                        className="bg-red-600 text-white hover:bg-red-700"
-                      >
-                        Sí, Eliminar
-                      </Button>
-                      <Button
-                        onClick={() => setDeletingDeck(null)}
-                        variant="outline"
-                        className="border-zinc-700 text-zinc-300 hover:bg-zinc-900"
-                      >
-                        Cancelar
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {editingDeck && (
-            <Card className="bg-zinc-950 border-zinc-800 mb-8">
-              <CardHeader>
-                <CardTitle className="text-white">{isCreating ? "Crear Nuevo Mazo" : "Editar Mazo"}</CardTitle>
+                <CardTitle className="text-white">{editingId ? "Editar Mazo" : "Crear Nuevo Mazo"}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="title" className="text-zinc-300">
-                      Título *
-                    </Label>
-                    <Input
-                      id="title"
-                      value={editingDeck.title || ""}
-                      onChange={(e) => setEditingDeck({ ...editingDeck, title: e.target.value })}
-                      className="bg-zinc-900 border-zinc-800 text-white"
-                      placeholder="Ej: Rock Clásico"
-                    />
+                    <Label className="text-zinc-300">Título</Label>
+                    <Input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="bg-zinc-900 border-zinc-800 text-white" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="theme" className="text-zinc-300">
-                      Tema *
-                    </Label>
-                    <Input
-                      id="theme"
-                      value={editingDeck.theme || ""}
-                      onChange={(e) => setEditingDeck({ ...editingDeck, theme: e.target.value })}
-                      className="bg-zinc-900 border-zinc-800 text-white"
-                      placeholder="Ej: rock"
-                    />
+                    <Label className="text-zinc-300">Tema (ID interno)</Label>
+                    <Input value={formData.theme} onChange={e => setFormData({...formData, theme: e.target.value})} className="bg-zinc-900 border-zinc-800 text-white" placeholder="ej: 80s, movies" />
                   </div>
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="description" className="text-zinc-300">
-                    Descripción
-                  </Label>
-                  <Textarea
-                    id="description"
-                    value={editingDeck.description || ""}
-                    onChange={(e) => setEditingDeck({ ...editingDeck, description: e.target.value })}
-                    className="bg-zinc-900 border-zinc-800 text-white"
-                    placeholder="Descripción del mazo"
-                    rows={3}
-                  />
+                  <Label className="text-zinc-300">Descripción</Label>
+                  <Textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="bg-zinc-900 border-zinc-800 text-white" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="buyLink" className="text-zinc-300">
-                      Link de Compra
-                    </Label>
-                    <Input
-                      id="buyLink"
-                      value={editingDeck.buyLink || ""}
-                      onChange={(e) => setEditingDeck({ ...editingDeck, buyLink: e.target.value })}
-                      className="bg-zinc-900 border-zinc-800 text-white"
-                      placeholder="https://..."
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="coverImage" className="text-zinc-300">
-                      Imagen de Portada (URL)
-                    </Label>
-                    <Input
-                      id="coverImage"
-                      value={editingDeck.coverImage || ""}
-                      onChange={(e) => setEditingDeck({ ...editingDeck, coverImage: e.target.value })}
-                      className="bg-zinc-900 border-zinc-800 text-white"
-                      placeholder="https://..."
-                    />
+
+                <div className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/50">
+                  <h3 className="text-zinc-400 font-semibold mb-3 text-sm uppercase tracking-wider">Personalizar Textos de Juego</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-zinc-300">Label 1 (Default: Canción)</Label>
+                      <Input value={formData.labelSong} onChange={e => setFormData({...formData, labelSong: e.target.value})} className="bg-zinc-900 border-zinc-800 text-white" placeholder="Ej: Canción" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-300">Label 2 (Default: Artista)</Label>
+                      <Input value={formData.labelArtist} onChange={e => setFormData({...formData, labelArtist: e.target.value})} className="bg-zinc-900 border-zinc-800 text-white" placeholder="Ej: Artista" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-300">Label 3 (Default: Álbum)</Label>
+                      <Input value={formData.labelAlbum} onChange={e => setFormData({...formData, labelAlbum: e.target.value})} className="bg-zinc-900 border-zinc-800 text-white" placeholder="Ej: Álbum" />
+                    </div>
                   </div>
                 </div>
-                <div className="flex gap-3">
-                  <Button onClick={handleSave} className="bg-white text-black hover:bg-zinc-200">
-                    <Save className="w-4 h-4 mr-2" />
-                    Guardar
+
+                <div className="flex items-center space-x-2">
+                  <Switch checked={formData.active} onCheckedChange={checked => setFormData({...formData, active: checked})} />
+                  <Label className="text-zinc-300">Mazo Activo</Label>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button onClick={handleSubmit} className="bg-white text-black hover:bg-zinc-200">
+                    <Save className="mr-2 h-4 w-4" /> Guardar
                   </Button>
-                  <Button
-                    onClick={handleCancel}
-                    variant="outline"
-                    className="border-zinc-700 text-zinc-300 hover:bg-zinc-900 bg-transparent"
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    Cancelar
+                  {/* Botón Cancelar con el mismo estilo solicitado */}
+                  <Button onClick={() => setIsFormOpen(false)} className="bg-white text-black hover:bg-zinc-200">
+                    <X className="mr-2 h-4 w-4" /> Cancelar
                   </Button>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {loading ? (
-            <div className="text-zinc-400">Cargando mazos...</div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {decks.map((deck) => (
-                <Card key={deck.id} className="bg-zinc-950 border-zinc-800">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center justify-between">
-                      <span>{deck.title}</span>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEdit(deck)}
-                          className="text-zinc-400 hover:text-white"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setDeletingDeck(deck)}
-                          className="text-zinc-400 hover:text-red-400"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-zinc-400 mb-2">{deck.description}</p>
-                    <div className="flex items-center justify-between text-xs text-zinc-500">
-                      <span className="capitalize">Tema: {deck.theme}</span>
-                      <span>{deck.cardCount || 0} cartas</span>
+          <div className="grid gap-4">
+            {decks.map((deck) => (
+              <Card key={deck.id} className="bg-zinc-950 border-zinc-800">
+                <CardContent className="flex items-center justify-between p-6">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">{deck.title}</h3>
+                    <p className="text-zinc-400 text-sm">{deck.description}</p>
+                    <div className="flex gap-4 mt-2 text-xs text-zinc-500">
+                      <span>Tema: {deck.theme}</span>
+                      <span>Cartas: {deck._count?.cards || 0}</span>
+                      <span className="text-zinc-400">Labels: {deck.labelSong}, {deck.labelArtist}, {deck.labelAlbum}</span>
                     </div>
-                    <div className="mt-2">
-                      <span
-                        className={`text-xs px-2 py-1 rounded ${
-                          deck.active ? "bg-green-950 text-green-400" : "bg-red-950 text-red-400"
-                        }`}
-                      >
-                        {deck.active ? "Activo" : "Inactivo"}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                  </div>
+                  <Button onClick={() => handleEdit(deck)} variant="ghost" className="text-zinc-400 hover:text-white">
+                    <Pencil className="h-5 w-5" />
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     </div>

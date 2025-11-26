@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Save, X, Trash2 } from "lucide-react"
+import { Plus, Save, X, Trash2, Pencil } from "lucide-react"
 
 interface Deck {
   id: number
@@ -22,6 +22,7 @@ interface CardData {
   qrToken: string
   difficulty: string
   spotifyUrl: string
+  previewUrl?: string
   artist: {
     id: number
     name: string
@@ -61,9 +62,14 @@ export default function AdminCardsPage() {
   const [decks, setDecks] = useState<Deck[]>([])
   const [cards, setCards] = useState<CardData[]>([])
   const [loadingCards, setLoadingCards] = useState(true)
-  const [isCreating, setIsCreating] = useState(false)
+  
+  // Estados para UI
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingCardId, setEditingCardId] = useState<number | null>(null)
+  
   const [deletingCard, setDeletingCard] = useState<CardData | null>(null)
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null)
+  
   const [cardForm, setCardForm] = useState<CardForm>({
     deckId: null,
     artistName: "",
@@ -115,16 +121,45 @@ export default function AdminCardsPage() {
     }
   }
 
+  // Función para preparar el formulario en modo edición
+  const handleEdit = (card: CardData) => {
+    setEditingCardId(card.id)
+    setCardForm({
+      deckId: card.deck.id,
+      artistName: card.artist.name,
+      artistCountry: card.artist.country || "",
+      artistGenre: card.artist.genre || "",
+      albumTitle: card.album?.title || "",
+      albumReleaseYear: card.album?.releaseYear || null,
+      albumCoverUrl: card.album?.coverUrl || "",
+      songName: card.songName,
+      spotifyUrl: card.spotifyUrl || "",
+      previewUrl: card.previewUrl || "",
+      difficulty: (card.difficulty as "easy" | "medium" | "hard") || "medium",
+    })
+    setIsFormOpen(true)
+    // Scroll hacia arriba para ver el formulario
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const handleSave = async () => {
     if (!cardForm.deckId || !cardForm.artistName || !cardForm.songName) {
-      alert("Por favor completa los campos requeridos")
+      alert("Por favor completa los campos requeridos (Mazo, Artista, Canción)")
       return
     }
 
     try {
       const token = localStorage.getItem("adminToken")
-      const response = await fetch("/api/proxy/admin/cards", {
-        method: "POST",
+      const isEditing = editingCardId !== null
+      
+      const url = isEditing 
+        ? `/api/proxy/admin/cards/${editingCardId}`
+        : "/api/proxy/admin/cards"
+      
+      const method = isEditing ? "PUT" : "POST"
+
+      const response = await fetch(url, {
+        method: method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -133,17 +168,17 @@ export default function AdminCardsPage() {
       })
 
       if (response.ok) {
-        alert("Carta creada exitosamente")
-        setIsCreating(false)
+        alert(isEditing ? "Carta actualizada exitosamente" : "Carta creada exitosamente")
+        setIsFormOpen(false)
         resetForm()
         await fetchCards()
       } else {
         const error = await response.json()
-        alert(error.message || "Error al crear la carta")
+        alert(error.message || `Error al ${isEditing ? 'actualizar' : 'crear'} la carta`)
       }
     } catch (error) {
       console.error("Error saving card:", error)
-      alert("Error al crear la carta")
+      alert("Error de conexión")
     }
   }
 
@@ -181,6 +216,7 @@ export default function AdminCardsPage() {
   }
 
   const resetForm = () => {
+    setEditingCardId(null)
     setCardForm({
       deckId: null,
       artistName: "",
@@ -207,16 +243,35 @@ export default function AdminCardsPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold text-white">Gestión de Cartas</h1>
-            <Button onClick={() => setIsCreating(!isCreating)} className="bg-white text-black hover:bg-zinc-200">
-              <Plus className="w-4 h-4 mr-2" />
-              {isCreating ? "Cancelar" : "Crear Carta"}
+            <Button 
+              onClick={() => {
+                if (isFormOpen) {
+                  setIsFormOpen(false)
+                  resetForm()
+                } else {
+                  setIsFormOpen(true)
+                  resetForm() // Asegurar que esté limpio al abrir
+                }
+              }} 
+              className="bg-white text-black hover:bg-zinc-200"
+            >
+              {isFormOpen ? (
+                <>
+                  <X className="w-4 h-4 mr-2" /> Cancelar
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" /> Crear Carta
+                </>
+              )}
             </Button>
           </div>
 
+          {/* Modal de confirmación de borrado */}
           {deletingCard && (
-            <Card className="bg-zinc-950 border-zinc-800 mb-8">
+            <Card className="bg-zinc-950 border-zinc-800 mb-8 border-red-900/50">
               <CardHeader>
-                <CardTitle className="text-white">Confirmar Eliminación</CardTitle>
+                <CardTitle className="text-red-500">Confirmar Eliminación</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-zinc-300">
@@ -224,7 +279,7 @@ export default function AdminCardsPage() {
                   <strong>{deletingCard.artist.name}</strong>?
                 </p>
                 {deleteWarning && (
-                  <div className="bg-yellow-950 border border-yellow-800 rounded p-4">
+                  <div className="bg-yellow-950/50 border border-yellow-800 rounded p-4">
                     <p className="text-yellow-200 whitespace-pre-line text-sm">{deleteWarning}</p>
                   </div>
                 )}
@@ -270,10 +325,14 @@ export default function AdminCardsPage() {
             </Card>
           )}
 
-          {isCreating && (
-            <Card className="bg-zinc-950 border-zinc-800 mb-8">
+          {/* Formulario de Creación / Edición */}
+          {isFormOpen && (
+            <Card className={`bg-zinc-950 border-zinc-800 mb-8 ${editingCardId ? 'border-blue-900/50' : ''}`}>
               <CardHeader>
-                <CardTitle className="text-white">Crear Nueva Carta</CardTitle>
+                <CardTitle className="text-white flex items-center gap-2">
+                  {editingCardId ? <Pencil className="w-5 h-5 text-blue-400" /> : <Plus className="w-5 h-5 text-green-400" />}
+                  {editingCardId ? "Editar Carta Existente" : "Crear Nueva Carta"}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -449,15 +508,14 @@ export default function AdminCardsPage() {
                 <div className="flex gap-3 pt-4">
                   <Button onClick={handleSave} className="bg-white text-black hover:bg-zinc-200">
                     <Save className="w-4 h-4 mr-2" />
-                    Crear Carta
+                    {editingCardId ? "Actualizar Carta" : "Crear Carta"}
                   </Button>
                   <Button
                     onClick={() => {
-                      setIsCreating(false)
+                      setIsFormOpen(false)
                       resetForm()
                     }}
-                    variant="outline"
-                    className="border-zinc-700 text-zinc-300 hover:bg-zinc-900"
+                    className="bg-white text-black hover:bg-zinc-200"
                   >
                     <X className="w-4 h-4 mr-2" />
                     Cancelar
@@ -474,18 +532,29 @@ export default function AdminCardsPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {cards.map((card) => (
-                  <Card key={card.id} className="bg-zinc-950 border-zinc-800">
+                  <Card key={card.id} className="bg-zinc-950 border-zinc-800 hover:border-zinc-700 transition-colors">
                     <CardHeader>
                       <CardTitle className="text-white text-base flex items-center justify-between">
-                        <span className="truncate">{card.songName}</span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setDeletingCard(card)}
-                          className="text-zinc-400 hover:text-red-400 flex-shrink-0"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <span className="truncate max-w-[70%]" title={card.songName}>{card.songName}</span>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEdit(card)}
+                            className="text-zinc-400 hover:text-blue-400 hover:bg-blue-950/30"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDeletingCard(card)}
+                            className="text-zinc-400 hover:text-red-400 hover:bg-red-950/30"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -501,9 +570,14 @@ export default function AdminCardsPage() {
                       <p className="text-sm text-zinc-400 mb-1">
                         <strong>Mazo:</strong> {card.deck.title}
                       </p>
-                      <p className="text-sm text-zinc-400">
-                        <strong>Dificultad:</strong> <span className="capitalize">{card.difficulty}</span>
-                      </p>
+                      <div className="flex justify-between items-center mt-2">
+                         <p className="text-sm text-zinc-400">
+                          <strong>Dificultad:</strong> <span className="capitalize">{card.difficulty}</span>
+                        </p>
+                        <span className="text-xs bg-zinc-900 text-zinc-500 px-2 py-1 rounded border border-zinc-800 font-mono">
+                          {card.qrToken}
+                        </span>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
