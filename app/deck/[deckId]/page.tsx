@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import PurchaseModal from "@/components/PurchaseModal"
 import { Play, Share2, Check } from "lucide-react" // Iconos agregados
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://ellena-hyperaemic-numbers.ngrok-free.dev" || "http://localhost:3001"
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001" || "http://localhost:3001"
 
 const fetcher = (url: string) =>
   fetch(url, {

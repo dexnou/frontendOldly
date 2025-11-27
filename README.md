@@ -443,7 +443,7 @@ GET /api/proxy/rankings/:deckId
 ### Development
 ```bash
 npm run dev
-# Disponible en http://localhost:3000
+# Disponible en http://localhost:3001
 ```
 
 ### Production Build

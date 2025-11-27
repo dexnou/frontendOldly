@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { motion, AnimatePresence } from "framer-motion"
 import { ExternalLink, Share2, Copy, Twitter, Home } from "lucide-react"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://ellena-hyperaemic-numbers.ngrok-free.dev" || "http://localhost:3001"
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001" || "http://localhost:3001"
 
 interface GameCard {
   id: string
