@@ -1,5 +1,5 @@
 // Service Worker inicial - será sobrescrito por Workbox
-const CACHE_NAME = 'oldly-music-box-v1';
+const CACHE_NAME = 'Oldy-music-box-v1';
 const OFFLINE_URL = '/offline.html';
 
 // Archivos esenciales para el funcionamiento offline
