@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { motion, AnimatePresence } from "framer-motion"
+import { ExternalLink, Share2, Copy, Twitter, Home } from "lucide-react"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://ellena-hyperaemic-numbers.ngrok-free.dev" || "http://localhost:3001"
 
@@ -17,7 +18,6 @@ interface GameCard {
     id: string
     title: string
     theme: string
-    // Labels personalizados
     labelSong?: string
     labelArtist?: string
     labelAlbum?: string
@@ -54,7 +54,9 @@ export default function PlayPage() {
   const [loading, setLoading] = useState(true)
   const [revealing, setRevealing] = useState(false)
   const [error, setError] = useState("")
+  
   const [gameStarted, setGameStarted] = useState(false)
+  const [isGameOver, setIsGameOver] = useState(false) // NUEVO: Estado de Fin de Juego
   const [answered, setAnswered] = useState(false)
   
   const [gameMode, setGameMode] = useState<'casual' | 'competitive' | 'competitive_turns' | null>(null)
@@ -73,7 +75,8 @@ export default function PlayPage() {
   const [participantAnswers, setParticipantAnswers] = useState<{[key: string]: {songKnew: boolean, artistKnew: boolean, albumKnew: boolean}}>({})
   
   const [activeGameError, setActiveGameError] = useState<{gameId: string, message: string} | null>(null)
-  
+  const [formError, setFormError] = useState("")
+
   const [userKnew, setUserKnew] = useState({
     songKnew: false,
     artistKnew: false,
@@ -258,6 +261,7 @@ export default function PlayPage() {
 
   const handleModeSelection = (mode: 'casual' | 'competitive' | 'competitive_turns') => {
     setGameMode(mode)
+    setFormError("")
     if (mode === 'casual') {
       startCasualSession()
     }
@@ -272,6 +276,7 @@ export default function PlayPage() {
   const removePlayer = (index: number) => {
     if (players.length > 1) {
       setPlayers(players.filter((_, i) => i !== index))
+      setFormError("")
     }
   }
 
@@ -279,14 +284,23 @@ export default function PlayPage() {
     const updatedPlayers = [...players]
     updatedPlayers[index] = name
     setPlayers(updatedPlayers)
+    setFormError("")
   }
 
   const startCompetitiveGame = async () => {
+    setFormError("")
     const validPlayers = players.filter(p => p.trim().length > 0)
     
     if (validPlayers.length === 0) {
-      setError("Debes agregar al menos un jugador")
+      setFormError("Debes agregar al menos un jugador")
       return
+    }
+
+    const names = validPlayers.map(p => p.trim().toLowerCase());
+    const uniqueNames = new Set(names);
+    if (names.length !== uniqueNames.size) {
+      setFormError("No puede haber dos participantes con el mismo nombre.");
+      return;
     }
 
     if (!token) {
@@ -318,6 +332,11 @@ export default function PlayPage() {
           })
           return
         }
+        if (data.errorCode === 'DUPLICATE_PARTICIPANT_NAMES' || data.errorCode === 'INVALID_PARTICIPANT_NAME') {
+             setFormError(data.message || "Error con los nombres de los participantes");
+             return;
+        }
+
         throw new Error(data.message || "Error iniciando juego competitivo")
       }
 
@@ -479,7 +498,12 @@ export default function PlayPage() {
   }
 
   const handlePlayAgain = () => {
-    router.push("/")
+    // Si el juego ya terminó, vamos al inicio
+    if (isGameOver) {
+      resetGame()
+    } else {
+      router.push("/")
+    }
   }
 
   const finishActiveGame = async (gameId: string) => {
@@ -513,19 +537,54 @@ export default function PlayPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || "Error finalizando partida")
 
-      setGameMode(null)
-      setGameId(null)
-      setGameParticipants([])
-      setCurrentTurnParticipantId(null)
-      setGameStarted(false)
-      setIsActiveCompetitiveSession(false)
-      setParticipantAnswers({})
-      setScoreResult(null)
-      setShowScoring(false)
-      setAnswered(false)
-      alert(`🏆 ¡Partida finalizada!`)
+      // NO reseteamos todo, activamos la pantalla de Game Over
+      setIsGameOver(true)
+      
     } catch (err: any) {
       setError(err.message || "Error finalizando partida")
+    }
+  }
+
+  // Función para resetear completamente y salir
+  const resetGame = () => {
+    setGameMode(null)
+    setGameId(null)
+    setGameParticipants([])
+    setCurrentTurnParticipantId(null)
+    setGameStarted(false)
+    setIsActiveCompetitiveSession(false)
+    setParticipantAnswers({})
+    setScoreResult(null)
+    setShowScoring(false)
+    setAnswered(false)
+    setIsGameOver(false)
+    router.push("/")
+  }
+
+  // Función para compartir resultados
+  const handleShare = (platform: 'whatsapp' | 'twitter' | 'copy') => {
+    const sorted = [...gameParticipants].sort((a, b) => b.totalPoints - a.totalPoints);
+    
+    let text = `🎵 *Oldly Fun Music Box* - Resultados 🏆\n\n`;
+    text += `Mazo: ${gameCard?.deck?.title || 'Desconocido'}\n`;
+    
+    sorted.forEach((p, index) => {
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅';
+      text += `${medal} ${p.name}: ${p.totalPoints} pts\n`;
+    });
+    
+    text += `\n¡Juega ahora en Oldly Fun! 🚀`;
+
+    const encodedText = encodeURIComponent(text);
+
+    if (platform === 'whatsapp') {
+      window.open(`https://wa.me/?text=${encodedText}`, '_blank');
+    } else if (platform === 'twitter') {
+      window.open(`https://twitter.com/intent/tweet?text=${encodedText}`, '_blank');
+    } else if (platform === 'copy') {
+      navigator.clipboard.writeText(text).then(() => {
+        alert("¡Resultados copiados! Puedes pegarlos en Instagram.");
+      });
     }
   }
 
@@ -560,17 +619,20 @@ export default function PlayPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
       <div className="max-w-6xl mx-auto flex gap-6">
+        
         {/* Main Content */}
         <div className={`${(gameMode === 'competitive' || gameMode === 'competitive_turns') && gameStarted ? 'flex-1' : 'max-w-2xl mx-auto w-full'}`}>
+          
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">🎵 Oldy Funs Music Box</h1>
+            <h1 className="text-4xl font-bold text-white mb-2">🎵 Oldly Fun Music Box</h1>
             <p className="text-blue-200">¡Adivina la canción!</p>
             {user && <p className="text-green-300 text-sm mt-2">Jugando como: {user.firstname}</p>}
           </div>
 
         {/* Game Card */}
         <div className="bg-white rounded-xl shadow-2xl p-6 mb-6">
+          
           {/* Deck Info */}
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">{gameCard.deck.title}</h2>
@@ -580,285 +642,337 @@ export default function PlayPage() {
             </div>
           </div>
 
-          {/* PANTALLA DE SESIÓN ACTIVA */}
-          {isActiveCompetitiveSession && !gameStarted ? (
-            <div className="text-center mb-6">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-6 max-w-md mx-auto">
-                <div className="text-4xl mb-4">🏆</div>
-                <h3 className="text-xl font-semibold mb-3 text-green-800">
-                  Sesión {gameMode === 'competitive_turns' ? 'Por Turnos' : 'Competitiva'} Activa
-                </h3>
-                <p className="text-green-700 mb-2 text-sm"><strong>Deck:</strong> {gameCard?.deck?.title}</p>
-                <p className="text-green-700 mb-4 text-sm">Partida en curso con {gameParticipants.length} jugadores</p>
-                
-                {gameMode === 'competitive_turns' && currentTurnParticipantId && (
-                  <div className="bg-yellow-100 p-2 rounded mb-3 border border-yellow-200">
-                    <p className="text-yellow-800 font-bold text-sm">
-                      Turno actual: {gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}
-                    </p>
-                  </div>
-                )}
+          {/* --- PANTALLA DE GAME OVER --- */}
+          {isGameOver ? (
+            <div className="text-center animate-in fade-in zoom-in duration-300">
+               <div className="text-6xl mb-4">🏆</div>
+               <h3 className="text-3xl font-bold text-gray-800 mb-2">¡Partida Finalizada!</h3>
+               <p className="text-gray-600 mb-6">Aquí están los resultados finales</p>
 
-                <div className="grid gap-3">
-                  <button onClick={() => setGameStarted(true)} className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors">▶️ Continuar jugando</button>
-                  <button onClick={endCompetitiveSession} className="bg-red-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-600 transition-colors">🏁 Finalizar partida completa</button>
-                </div>
-              </div>
-            </div>
-          ) : isActiveCasualSession && !gameStarted ? (
-            /* Sesión casual activa */
-            <div className="text-center mb-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-md mx-auto">
-                <div className="text-4xl mb-4">🎧</div>
-                <h3 className="text-xl font-semibold mb-3 text-blue-800">Sesión Casual Activa</h3>
-                <p className="text-blue-700 mb-4 text-sm">Explorando música sin competir por puntos</p>
-                <div className="grid gap-3">
-                  <button onClick={() => setGameStarted(true)} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">▶️ Continuar en modo casual</button>
-                  <button onClick={endCasualSession} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors">🏁 Terminar sesión casual</button>
-                </div>
-              </div>
-            </div>
-          ) : !gameMode ? (
-            /* SELECCIÓN DE MODO */
-            <div className="text-center">
-              <div className="text-6xl mb-4">🎯</div>
-              <h3 className="text-2xl font-semibold mb-6">¿Cómo quieres jugar?</h3>
-              
-              <div className="grid gap-4 max-w-md mx-auto">
-                <button onClick={() => handleModeSelection('casual')} className="bg-blue-500 text-white p-6 rounded-xl text-left hover:bg-blue-600 transition-colors shadow-lg">
-                  <div className="flex items-center mb-2"><span className="text-3xl mr-3">🎧</span><h4 className="text-xl font-bold">Modo Casual</h4></div>
-                  <p className="text-blue-100 text-sm">Solo escucha y ve las respuestas. Sin puntaje.</p>
-                </button>
-                
-                <button onClick={() => handleModeSelection('competitive')} className="bg-green-600 text-white p-6 rounded-xl text-left hover:bg-green-700 transition-colors shadow-lg">
-                  <div className="flex items-center mb-2"><span className="text-3xl mr-3">🏆</span><h4 className="text-xl font-bold">Todos vs Todos</h4></div>
-                  <p className="text-green-100 text-sm">Todos adivinan la misma canción y suman puntos.</p>
-                </button>
+               <div className="space-y-3 mb-8">
+                 {gameParticipants
+                   .sort((a, b) => b.totalPoints - a.totalPoints)
+                   .map((participant, index) => (
+                     <div key={participant.id} 
+                          className={`flex items-center justify-between p-4 rounded-lg border-2 
+                          ${index === 0 ? 'bg-yellow-50 border-yellow-400' : 'bg-gray-50 border-gray-200'}`}>
+                       <div className="flex items-center gap-3">
+                         <span className="text-2xl">
+                           {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅'}
+                         </span>
+                         <span className="font-bold text-lg text-gray-800">{participant.name}</span>
+                       </div>
+                       <span className="font-bold text-xl text-gray-700">{participant.totalPoints} pts</span>
+                     </div>
+                 ))}
+               </div>
 
-                <button onClick={() => handleModeSelection('competitive_turns')} className="bg-purple-600 text-white p-6 rounded-xl text-left hover:bg-purple-700 transition-colors shadow-lg">
-                  <div className="flex items-center mb-2"><span className="text-3xl mr-3">📱</span><h4 className="text-xl font-bold">Pasar el Celular</h4></div>
-                  <p className="text-purple-100 text-sm">Juegan uno por uno. Ideal para un solo dispositivo.</p>
-                </button>
-              </div>
-            </div>
-          ) : (gameMode === 'competitive' || gameMode === 'competitive_turns') && !gameStarted ? (
-            /* FORMULARIO DE JUGADORES */
-            <div className="text-center">
-              {activeGameError ? (
-                <div className="max-w-md mx-auto">
-                  <div className="text-6xl mb-4">⚠️</div>
-                  <h3 className="text-2xl font-semibold mb-4 text-red-600">Juego Activo Detectado</h3>
-                  <p className="text-red-800 mb-4">{activeGameError.message}</p>
-                  <div className="grid gap-3 mb-4">
-                    <button onClick={() => finishActiveGame(activeGameError.gameId)} className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors">🏁 Finalizar juego actual y empezar nuevo</button>
-                    <button onClick={() => { setActiveGameError(null); setGameMode(null) }} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors">⬅️ Cancelar y volver</button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="text-6xl mb-4">👥</div>
-                  <h3 className="text-2xl font-semibold mb-6">
-                    {gameMode === 'competitive_turns' ? 'Jugadores (en orden de turno)' : 'Agregar Jugadores'}
-                  </h3>
-              
-                  <div className="max-w-md mx-auto space-y-3 mb-6">
-                    {players.map((player, index) => (
-                      <div key={index} className="flex gap-2">
-                        <input type="text" value={player} onChange={(e) => updatePlayer(index, e.target.value)} placeholder={`Jugador ${index + 1}`} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" maxLength={80} />
-                        {players.length > 1 && (
-                          <button onClick={() => removePlayer(index)} className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">❌</button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="flex gap-2 justify-center mb-6">
-                    {players.length < 8 && (
-                      <button onClick={addPlayer} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">➕ Agregar Jugador</button>
-                    )}
-                    <button onClick={() => setGameMode(null)} className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">⬅️ Volver</button>
-                  </div>
-                  
-                  <button onClick={handleStartGame} disabled={players.filter(p => p.trim().length > 0).length === 0} className="bg-green-500 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">🚀 Empezar Juego</button>
-                </>
-              )}
-            </div>
-          ) : !gameStarted ? (
-            /* PRE-GAME CASUAL */
-            <div className="text-center">
-              <div className="text-6xl mb-4">🎧</div>
-              <h3 className="text-xl font-semibold mb-4">¿Listo para el desafío?</h3>
-              <p className="text-gray-600 mb-6">{gameCard.hint}</p>
-              <button onClick={handleStartGame} className="bg-green-500 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-green-600 transition-colors">▶️ Empezar Juego</button>
-            </div>
-          ) : !answered ? (
-            /* PLAYING */
-            <div className="text-center">
-              {/* BLOQUEO SI YA JUGÓ */}
-              {cardAlreadyPlayedByCurrent ? (
-                <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-8 shadow-lg animate-in fade-in zoom-in duration-300">
-                   <div className="text-5xl mb-4">🚫</div>
-                   <h3 className="text-xl font-bold text-yellow-800 mb-2">¡Ya jugaste esta carta!</h3>
-                   <p className="text-yellow-700 mb-6">
-                     <strong>{gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}</strong>, ya adivinaste esta canción anteriormente.
-                   </p>
-                   <p className="text-sm text-gray-600 mb-4">
-                     Escanea una carta nueva o pásale el turno al siguiente jugador.
-                   </p>
-                </div>
-              ) : (
-                /* Pantalla normal de juego */
-                <>
-                  {gameMode === 'competitive_turns' && currentTurnParticipantId && (
-                    <div className="mb-6 bg-purple-100 border-2 border-purple-300 rounded-xl p-4 animate-pulse">
-                      <p className="text-sm text-purple-800 font-bold uppercase tracking-wider mb-1">Turno de</p>
-                      <h3 className="text-3xl font-extrabold text-purple-900">
-                        {gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}
-                      </h3>
-                    </div>
-                  )}
+               <div className="mb-8">
+                 <p className="text-sm text-gray-500 mb-3 uppercase font-bold tracking-wide">Compartir Resultados</p>
+                 <div className="flex justify-center gap-3">
+                    <button onClick={() => handleShare('whatsapp')} className="flex items-center gap-2 bg-[#25D366] text-white px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity">
+                      <Share2 className="w-4 h-4" /> WhatsApp
+                    </button>
+                    <button onClick={() => handleShare('twitter')} className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg font-semibold hover:opacity-80 transition-opacity">
+                      <Twitter className="w-4 h-4" /> X / Twitter
+                    </button>
+                    <button onClick={() => handleShare('copy')} className="flex items-center gap-2 bg-pink-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-pink-700 transition-opacity">
+                      <Copy className="w-4 h-4" /> Copiar (Instagram)
+                    </button>
+                 </div>
+               </div>
 
-                  <h3 className="text-xl font-semibold mb-6">🎵 ¡Escucha y adivina!</h3>
-
-                  <div className="relative w-full max-w-md mx-auto mb-4">
-                    {embedUrl ? (
-                      <div className="relative w-full">
-                        <iframe src={embedUrl} width="100%" height="152" style={{ borderRadius: "12px" }} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" className="rounded-lg shadow-md"></iframe>
-                        <button onClick={handleRevealAnswer} disabled={revealing} className="absolute top-0 left-0 w-full h-full bg-teal-600 text-white rounded-lg text-lg font-bold hover:bg-teal-700 transition-colors shadow-xl flex items-center justify-center" style={{ zIndex: 10, clipPath: "polygon(0 0, 85% 0, 85% 30%, 100% 30%, 100% 70%, 85% 70%, 85% 100%, 0 100%)" }}>
-                          {revealing ? "Revelando..." : "🔍 Revelar Respuesta"}
-                        </button>
-                      </div>
-                    ) : gameCard.previewUrl ? (
-                      <div className="w-full flex justify-center">
-                        <audio controls className="w-full"><source src={gameCard.previewUrl} type="audio/mpeg" />Tu navegador no soporta el elemento de audio.</audio>
-                      </div>
-                    ) : (
-                      <div className="w-full p-4 bg-yellow-100 rounded-lg"><p className="text-yellow-800">⚠️ Audio no disponible para esta carta</p></div>
-                    )}
-                  </div>
-                </>
-              )}
+               <button onClick={resetGame} className="w-full bg-blue-600 text-white py-3 rounded-lg text-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                  <Home className="w-5 h-5" /> Volver al Inicio
+               </button>
             </div>
           ) : (
-            /* ANSWER REVEALED */
-            <div className="text-center">
-              <div className="text-6xl mb-4">🎉</div>
-              <h3 className="text-2xl font-bold text-green-600 mb-6">¡Respuesta revelada!</h3>
-
-              {revealedCard && (
-                <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {revealedCard.album?.coverUrl && (
-                      <div className="flex justify-center"><img src={revealedCard.album.coverUrl || "/placeholder.svg"} alt={revealedCard.album.title} className="w-48 h-48 object-cover rounded-lg shadow-lg" /></div>
-                    )}
-                    <div className="text-left space-y-3">
-                      <div><h4 className="font-semibold text-gray-700">Canción:</h4><p className="text-xl font-bold text-gray-900">{revealedCard.songName}</p></div>
-                      <div><h4 className="font-semibold text-gray-700">Artista:</h4><p className="text-lg text-gray-900">{revealedCard.artist.name}</p></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SCORING UI CON LABELS DINÁMICOS */}
-              {(gameMode === 'competitive' || gameMode === 'competitive_turns') && showScoring && (
-                <div className="mt-6 p-6 bg-blue-50 rounded-lg border-2 border-blue-200">
-                  <h4 className="text-xl font-bold text-blue-800 mb-4 flex items-center justify-center">
-                    <span className="mr-2">🎯</span>
-                    {gameMode === 'competitive_turns' 
-                      ? `¿Qué adivinó ${gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}?`
-                      : '¿Qué adivinó cada jugador?'}
-                  </h4>
-                  
-                  <div className="space-y-6 text-left">
-                    {gameParticipants
-                      .filter(p => gameMode !== 'competitive_turns' || p.id == currentTurnParticipantId)
-                      .map((participant) => (
-                      <div key={participant.id} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
-                        <h5 className="text-lg font-bold text-gray-800 mb-3 flex items-center">
-                          <span className="mr-2">👤</span>
-                          {participant.name}
-                        </h5>
+            /* --- RESTO DE LA LÓGICA DEL JUEGO (Mismo código de antes) --- */
+            <>
+            {/* PANTALLA DE SESIÓN ACTIVA */}
+            {isActiveCompetitiveSession && !gameStarted ? (
+                /* ... (mismo código sesión activa) ... */
+                <div className="text-center mb-6">
+                    {/* ... */}
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-6 max-w-md mx-auto">
+                        <div className="text-4xl mb-4">🏆</div>
+                        <h3 className="text-xl font-semibold mb-3 text-green-800">
+                        Sesión {gameMode === 'competitive_turns' ? 'Por Turnos' : 'Competitiva'} Activa
+                        </h3>
+                        <p className="text-green-700 mb-2 text-sm"><strong>Deck:</strong> {gameCard?.deck?.title}</p>
+                        <p className="text-green-700 mb-4 text-sm">Partida en curso con {gameParticipants.length} jugadores</p>
                         
-                        <div className="space-y-3">
-                          {/* DYNAMIC LABEL 1 */}
-                          <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
-                            <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.songKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'songKnew')} />
-                            <div className="flex items-center"><span className="text-2xl mr-2">🎵</span><div>
-                              <div className="font-semibold text-gray-800">{gameCard?.deck?.labelSong || "Canción"}</div>
-                              <div className="text-sm text-gray-600">"{revealedCard?.songName}"</div>
-                            </div></div>
-                          </label>
-                          
-                          {/* DYNAMIC LABEL 2 */}
-                          <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
-                            <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.artistKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'artistKnew')} />
-                            <div className="flex items-center"><span className="text-2xl mr-2">🎤</span><div>
-                              <div className="font-semibold text-gray-800">{gameCard?.deck?.labelArtist || "Artista"}</div>
-                              <div className="text-sm text-gray-600">"{revealedCard?.artist.name}"</div>
-                            </div></div>
-                          </label>
-                          
-                          {/* DYNAMIC LABEL 3 */}
-                          {revealedCard?.album && (
-                            <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
-                              <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.albumKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'albumKnew')} />
-                              <div className="flex items-center"><span className="text-2xl mr-2">💿</span><div>
-                                <div className="font-semibold text-gray-800">{gameCard?.deck?.labelAlbum || "Álbum"}</div>
-                                <div className="text-sm text-gray-600">"{revealedCard?.album.title}"</div>
-                              </div></div>
-                            </label>
-                          )}
+                        {gameMode === 'competitive_turns' && currentTurnParticipantId && (
+                        <div className="bg-yellow-100 p-2 rounded mb-3 border border-yellow-200">
+                            <p className="text-yellow-800 font-bold text-sm">
+                            Turno actual: {gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}
+                            </p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <button onClick={handleSubmitScore} disabled={scoring} className="w-full bg-green-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6">
-                    {scoring ? "Calculando..." : "✅ Confirmar Puntos"}
-                  </button>
-                </div>
-              )}
+                        )}
 
-              {/* RESULTADO DE PUNTUACIÓN */}
-              {(gameMode === 'competitive' || gameMode === 'competitive_turns') && scoreResult && (
-                <div className="mt-6 p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
-                  {gameMode === 'competitive_turns' && scoreResult.game?.nextTurn && (
-                    <div className="mb-6 bg-yellow-100 border-l-4 border-yellow-500 p-4 text-left">
-                      <p className="text-sm font-bold text-yellow-700 uppercase">Siguiente jugador</p>
-                      <p className="text-2xl font-extrabold text-yellow-900">👉 {scoreResult.game.nextTurn.participantName}</p>
+                        <div className="grid gap-3">
+                        <button onClick={() => setGameStarted(true)} className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors">▶️ Continuar jugando</button>
+                        <button onClick={endCompetitiveSession} className="bg-red-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-600 transition-colors">🏁 Finalizar partida completa</button>
+                        </div>
                     </div>
-                  )}
-                  <h4 className="text-2xl font-bold text-green-800 mb-6 flex items-center"><span className="mr-2">🏆</span>Resultados</h4>
-                  {(scoreResult.round?.participantResults || [scoreResult.round]).map((result: any) => {
-                    const pName = result.participantName || gameParticipants.find(p => p.id == result.participantId)?.name;
-                    return (
-                      <div key={result.participantId} className="mb-4 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
-                        <h5 className="text-lg font-bold text-gray-800 mb-2 flex justify-between">
-                          <span>👤 {pName}</span>
-                          <span className="text-green-600">+{result.pointsEarned || result.points} pts</span>
-                        </h5>
-                        <div className="text-sm text-gray-600 flex justify-between px-4">
-                          <span>🎵 {result.answers?.songKnew || result.userKnew?.songKnew ? '✅' : '❌'}</span>
-                          <span>🎤 {result.answers?.artistKnew || result.userKnew?.artistKnew ? '✅' : '❌'}</span>
-                          <span>💿 {result.answers?.albumKnew || result.userKnew?.albumKnew ? '✅' : '❌'}</span>
+                </div>
+            ) : isActiveCasualSession && !gameStarted ? (
+                /* ... (mismo código casual activa) ... */
+                <div className="text-center mb-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-md mx-auto">
+                        <div className="text-4xl mb-4">🎧</div>
+                        <h3 className="text-xl font-semibold mb-3 text-blue-800">Sesión Casual Activa</h3>
+                        <p className="text-blue-700 mb-4 text-sm">Explorando música sin competir por puntos</p>
+                        <div className="grid gap-3">
+                        <button onClick={() => setGameStarted(true)} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">▶️ Continuar en modo casual</button>
+                        <button onClick={endCasualSession} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors">🏁 Terminar sesión casual</button>
                         </div>
-                      </div>
-                    )
-                  })}
+                    </div>
                 </div>
-              )}
+            ) : !gameMode ? (
+                /* ... (mismo código selección modo) ... */
+                <div className="text-center">
+                <div className="text-6xl mb-4">🎯</div>
+                <h3 className="text-2xl font-semibold mb-6">¿Cómo quieres jugar?</h3>
+                
+                <div className="grid gap-4 max-w-md mx-auto">
+                    <button onClick={() => handleModeSelection('casual')} className="bg-blue-500 text-white p-6 rounded-xl text-left hover:bg-blue-600 transition-colors shadow-lg">
+                    <div className="flex items-center mb-2"><span className="text-3xl mr-3">🎧</span><h4 className="text-xl font-bold">Modo Casual</h4></div>
+                    <p className="text-blue-100 text-sm">Solo escucha y ve las respuestas. Sin puntaje.</p>
+                    </button>
+                    
+                    <button onClick={() => handleModeSelection('competitive')} className="bg-green-600 text-white p-6 rounded-xl text-left hover:bg-green-700 transition-colors shadow-lg">
+                    <div className="flex items-center mb-2"><span className="text-3xl mr-3">🏆</span><h4 className="text-xl font-bold">Todos vs Todos</h4></div>
+                    <p className="text-green-100 text-sm">Todos adivinan la misma canción y suman puntos.</p>
+                    </button>
 
-              {/* MENSAJE MODO CASUAL */}
-              {gameMode === 'casual' && (
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200 text-center">
-                  <h4 className="text-lg font-semibold text-blue-800 mb-2">🎧 Modo Casual</h4>
-                  <p className="text-blue-700 mb-4">¡Solo disfruta la música! No se calculan puntos en este modo.</p>
-                  <button onClick={endCasualSession} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors w-full">🏁 Terminar sesión casual</button>
+                    <button onClick={() => handleModeSelection('competitive_turns')} className="bg-purple-600 text-white p-6 rounded-xl text-left hover:bg-purple-700 transition-colors shadow-lg">
+                    <div className="flex items-center mb-2"><span className="text-3xl mr-3">📱</span><h4 className="text-xl font-bold">Pasar el Celular</h4></div>
+                    <p className="text-purple-100 text-sm">Juegan uno por uno. Ideal para un solo dispositivo.</p>
+                    </button>
                 </div>
-              )}
+                </div>
+            ) : (gameMode === 'competitive' || gameMode === 'competitive_turns') && !gameStarted ? (
+                /* ... (mismo código form jugadores) ... */
+                <div className="text-center">
+                {activeGameError ? (
+                    <div className="max-w-md mx-auto">
+                    <div className="text-6xl mb-4">⚠️</div>
+                    <h3 className="text-2xl font-semibold mb-4 text-red-600">Juego Activo Detectado</h3>
+                    <p className="text-red-800 mb-4">{activeGameError.message}</p>
+                    <div className="grid gap-3 mb-4">
+                        <button onClick={() => finishActiveGame(activeGameError.gameId)} className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors">🏁 Finalizar juego actual y empezar nuevo</button>
+                        <button onClick={() => { setActiveGameError(null); setGameMode(null) }} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors">⬅️ Cancelar y volver</button>
+                    </div>
+                    </div>
+                ) : (
+                    <>
+                    <div className="text-6xl mb-4">👥</div>
+                    <h3 className="text-2xl font-semibold mb-6">
+                        {gameMode === 'competitive_turns' ? 'Jugadores (en orden de turno)' : 'Agregar Jugadores'}
+                    </h3>
+                
+                    <div className="max-w-md mx-auto space-y-3 mb-6">
+                        {players.map((player, index) => (
+                        <div key={index} className="flex gap-2">
+                            <input type="text" value={player} onChange={(e) => updatePlayer(index, e.target.value)} placeholder={`Jugador ${index + 1}`} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" maxLength={80} />
+                            {players.length > 1 && (
+                            <button onClick={() => removePlayer(index)} className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">❌</button>
+                            )}
+                        </div>
+                        ))}
+                    </div>
+                    
+                    {formError && (
+                        <div className="max-w-md mx-auto mb-6 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg animate-in slide-in-from-top-2">
+                        {formError}
+                        </div>
+                    )}
 
-              <button onClick={handlePlayAgain} className="bg-purple-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors mt-6">🏠 Volver al inicio</button>
-            </div>
+                    <div className="flex gap-2 justify-center mb-6">
+                        {players.length < 8 && (
+                        <button onClick={addPlayer} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">➕ Agregar Jugador</button>
+                        )}
+                        <button onClick={() => setGameMode(null)} className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">⬅️ Volver</button>
+                    </div>
+                    
+                    <button onClick={handleStartGame} disabled={players.filter(p => p.trim().length > 0).length === 0} className="bg-green-500 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">🚀 Empezar Juego</button>
+                    </>
+                )}
+                </div>
+            ) : !gameStarted ? (
+                /* ... (mismo código pre-game casual) ... */
+                <div className="text-center">
+                <div className="text-6xl mb-4">🎧</div>
+                <h3 className="text-xl font-semibold mb-4">¿Listo para el desafío?</h3>
+                <p className="text-gray-600 mb-6">{gameCard.hint}</p>
+                <button onClick={handleStartGame} className="bg-green-500 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-green-600 transition-colors">▶️ Empezar Juego</button>
+                </div>
+            ) : !answered ? (
+                /* ... (mismo código playing) ... */
+                <div className="text-center">
+                {cardAlreadyPlayedByCurrent ? (
+                    <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-8 shadow-lg animate-in fade-in zoom-in duration-300">
+                    <div className="text-5xl mb-4">🚫</div>
+                    <h3 className="text-xl font-bold text-yellow-800 mb-2">¡Ya jugaste esta carta!</h3>
+                    <p className="text-yellow-700 mb-6">
+                        <strong>{gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}</strong>, ya adivinaste esta canción anteriormente.
+                    </p>
+                    <p className="text-sm text-gray-600 mb-4">
+                        Escanea una carta nueva o pásale el turno al siguiente jugador.
+                    </p>
+                    </div>
+                ) : (
+                    <>
+                    {gameMode === 'competitive_turns' && currentTurnParticipantId && (
+                        <div className="mb-6 bg-purple-100 border-2 border-purple-300 rounded-xl p-4 animate-pulse">
+                        <p className="text-sm text-purple-800 font-bold uppercase tracking-wider mb-1">Turno de</p>
+                        <h3 className="text-3xl font-extrabold text-purple-900">
+                            {gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}
+                        </h3>
+                        </div>
+                    )}
+
+                    <h3 className="text-xl font-semibold mb-6">🎵 ¡Escucha y adivina!</h3>
+
+                    <div className="relative w-full max-w-md mx-auto mb-4">
+                        {embedUrl ? (
+                        <div className="relative w-full">
+                            <iframe src={embedUrl} width="100%" height="152" style={{ borderRadius: "12px" }} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" className="rounded-lg shadow-md"></iframe>
+                            <button onClick={handleRevealAnswer} disabled={revealing} className="absolute top-0 left-0 w-full h-full bg-teal-600 text-white rounded-lg text-lg font-bold hover:bg-teal-700 transition-colors shadow-xl flex items-center justify-center" style={{ zIndex: 10, clipPath: "polygon(0 0, 85% 0, 85% 30%, 100% 30%, 100% 70%, 85% 70%, 85% 100%, 0 100%)" }}>
+                            {revealing ? "Revelando..." : "🔍 Revelar Respuesta"}
+                            </button>
+                        </div>
+                        ) : gameCard.previewUrl ? (
+                        <div className="w-full flex justify-center">
+                            <audio controls className="w-full"><source src={gameCard.previewUrl} type="audio/mpeg" />Tu navegador no soporta el elemento de audio.</audio>
+                        </div>
+                        ) : (
+                        <div className="w-full p-4 bg-yellow-100 rounded-lg"><p className="text-yellow-800">⚠️ Audio no disponible para esta carta</p></div>
+                        )}
+                    </div>
+                    </>
+                )}
+                </div>
+            ) : (
+                /* ... (mismo código revealed & scoring) ... */
+                <div className="text-center">
+                <div className="text-6xl mb-4">🎉</div>
+                <h3 className="text-2xl font-bold text-green-600 mb-6">¡Respuesta revelada!</h3>
+
+                {revealedCard && (
+                    <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                    <div className="grid md:grid-cols-2 gap-6">
+                        {revealedCard.album?.coverUrl && (
+                        <div className="flex justify-center"><img src={revealedCard.album.coverUrl || "/placeholder.svg"} alt={revealedCard.album.title} className="w-48 h-48 object-cover rounded-lg shadow-lg" /></div>
+                        )}
+                        <div className="text-left space-y-3">
+                        <div><h4 className="font-semibold text-gray-700">Canción:</h4><p className="text-xl font-bold text-gray-900">{revealedCard.songName}</p></div>
+                        <div><h4 className="font-semibold text-gray-700">Artista:</h4><p className="text-lg text-gray-900">{revealedCard.artist.name}</p></div>
+                        
+                        {revealedCard.spotifyUrl && (
+                            <div className="mt-4">
+                            <a href={revealedCard.spotifyUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 bg-[#1DB954] text-black px-4 py-2 rounded-lg font-semibold hover:bg-[#1ed760] transition-transform hover:scale-105 shadow-md text-sm">
+                                <span className="text-lg">🎵</span> Escuchar completa en Spotify
+                                <ExternalLink className="w-4 h-4" />
+                            </a>
+                            </div>
+                        )}
+
+                        </div>
+                    </div>
+                    </div>
+                )}
+
+                {/* SCORING UI */}
+                {(gameMode === 'competitive' || gameMode === 'competitive_turns') && showScoring && (
+                    <div className="mt-6 p-6 bg-blue-50 rounded-lg border-2 border-blue-200">
+                    <h4 className="text-xl font-bold text-blue-800 mb-4 flex items-center justify-center">
+                        <span className="mr-2">🎯</span>
+                        {gameMode === 'competitive_turns' 
+                        ? `¿Qué adivinó ${gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}?`
+                        : '¿Qué adivinó cada jugador?'}
+                    </h4>
+                    
+                    <div className="space-y-6 text-left">
+                        {gameParticipants
+                        .filter(p => gameMode !== 'competitive_turns' || p.id == currentTurnParticipantId)
+                        .map((participant) => (
+                        <div key={participant.id} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
+                            <h5 className="text-lg font-bold text-gray-800 mb-3 flex items-center">
+                            <span className="mr-2">👤</span>
+                            {participant.name}
+                            </h5>
+                            
+                            <div className="space-y-3">
+                            <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
+                                <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.songKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'songKnew')} />
+                                <div className="flex items-center"><span className="text-2xl mr-2">🎵</span><div><div className="font-semibold text-gray-800">{gameCard?.deck?.labelSong || "Canción"}</div><div className="text-sm text-gray-600">"{revealedCard?.songName}"</div></div></div>
+                            </label>
+                            <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
+                                <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.artistKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'artistKnew')} />
+                                <div className="flex items-center"><span className="text-2xl mr-2">🎤</span><div><div className="font-semibold text-gray-800">{gameCard?.deck?.labelArtist || "Artista"}</div><div className="text-sm text-gray-600">"{revealedCard?.artist.name}"</div></div></div>
+                            </label>
+                            {revealedCard?.album && (
+                                <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
+                                <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.albumKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'albumKnew')} />
+                                <div className="flex items-center"><span className="text-2xl mr-2">💿</span><div><div className="font-semibold text-gray-800">{gameCard?.deck?.labelAlbum || "Álbum"}</div><div className="text-sm text-gray-600">"{revealedCard?.album.title}"</div></div></div>
+                                </label>
+                            )}
+                            </div>
+                        </div>
+                        ))}
+                    </div>
+                    
+                    <button onClick={handleSubmitScore} disabled={scoring} className="w-full bg-green-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6">
+                        {scoring ? "Calculando..." : "✅ Confirmar Puntos"}
+                    </button>
+                    </div>
+                )}
+
+                {/* RESULTADO DE PUNTUACIÓN */}
+                {(gameMode === 'competitive' || gameMode === 'competitive_turns') && scoreResult && (
+                    <div className="mt-6 p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
+                    {gameMode === 'competitive_turns' && scoreResult.game?.nextTurn && (
+                        <div className="mb-6 bg-yellow-100 border-l-4 border-yellow-500 p-4 text-left">
+                        <p className="text-sm font-bold text-yellow-700 uppercase">Siguiente jugador</p>
+                        <p className="text-2xl font-extrabold text-yellow-900">👉 {scoreResult.game.nextTurn.participantName}</p>
+                        </div>
+                    )}
+                    <h4 className="text-2xl font-bold text-green-800 mb-6 flex items-center"><span className="mr-2">🏆</span>Resultados</h4>
+                    {(scoreResult.round?.participantResults || [scoreResult.round]).map((result: any) => {
+                        const pName = result.participantName || gameParticipants.find(p => p.id == result.participantId)?.name;
+                        return (
+                        <div key={result.participantId} className="mb-4 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                            <h5 className="text-lg font-bold text-gray-800 mb-2 flex justify-between">
+                            <span>👤 {pName}</span>
+                            <span className="text-green-600">+{result.pointsEarned ?? result.points ?? 0} pts</span>
+                            </h5>
+                            <div className="text-sm text-gray-600 flex justify-between px-4">
+                            <span>🎵 {result.answers?.songKnew || result.userKnew?.songKnew ? '✅' : '❌'}</span>
+                            <span>🎤 {result.answers?.artistKnew || result.userKnew?.artistKnew ? '✅' : '❌'}</span>
+                            <span>💿 {result.answers?.albumKnew || result.userKnew?.albumKnew ? '✅' : '❌'}</span>
+                            </div>
+                        </div>
+                        )
+                    })}
+                    </div>
+                )}
+
+                {/* MENSAJE MODO CASUAL */}
+                {gameMode === 'casual' && (
+                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200 text-center">
+                    <h4 className="text-lg font-semibold text-blue-800 mb-2">🎧 Modo Casual</h4>
+                    <p className="text-blue-700 mb-4">¡Solo disfruta la música! No se calculan puntos en este modo.</p>
+                    <button onClick={endCasualSession} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors w-full">🏁 Terminar sesión casual</button>
+                    </div>
+                )}
+
+                <button onClick={handlePlayAgain} className="bg-purple-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors mt-6">🏠 Volver al inicio</button>
+                </div>
+            )
+            }
+            </>
           )}
         </div>
 

@@ -1,13 +1,14 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://ellena-hyperaemic-numbers.ngrok-free.dev" || "http://localhost:3001"
 
-export default function LoginPage() {
+// 1. Movemos toda la lógica a un componente interno
+function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login } = useAuth()
@@ -39,15 +40,11 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       })
 
-      console.log("[v0] Login response status:", res.status)
       const text = await res.text()
-      console.log("[v0] Login response text:", text.substring(0, 200))
-
       let data
       try {
         data = JSON.parse(text)
       } catch (parseError) {
-        console.error("[v0] Error parsing response:", parseError)
         throw new Error("Error del servidor - no se pudo procesar la respuesta")
       }
 
@@ -59,14 +56,11 @@ export default function LoginPage() {
         throw new Error(errorMessage)
       }
 
-      // Verificar que la respuesta tenga la estructura esperada
       if (!data?.data?.token || !data?.data?.user) {
         throw new Error("Error del servidor - respuesta incompleta")
       }
 
-      // Usar el contexto de autenticación para guardar el token y usuario
       login(data.data.token, data.data.user)
-
       router.push(redirectTo)
     } catch (err: any) {
       console.error("[v0] Error en login:", err)
@@ -78,7 +72,6 @@ export default function LoginPage() {
 
   // Login con Google
   const handleGoogleLogin = () => {
-    // Redirige a endpoint OAuth del backend
     window.location.href = `${BACKEND_URL}/api/auth/google?redirect=${encodeURIComponent(redirectTo)}`
   }
 
@@ -88,7 +81,6 @@ export default function LoginPage() {
     setLoading(true)
     setError("")
 
-    // Validaciones básicas
     if (!firstname.trim() || !lastname.trim()) {
       setError("Nombre y apellido son requeridos")
       setLoading(false)
@@ -102,7 +94,6 @@ export default function LoginPage() {
     }
 
     try {
-      console.log("[v0] Attempting register via proxy")
       const res = await fetch("/api/proxy/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -115,20 +106,15 @@ export default function LoginPage() {
         }),
       })
 
-      console.log("[v0] Register response status:", res.status)
       const text = await res.text()
-      console.log("[v0] Register response text:", text.substring(0, 200))
-
       let data
       try {
         data = JSON.parse(text)
       } catch (parseError) {
-        console.error("[v0] Error parsing response:", parseError)
         throw new Error("Error del servidor - no se pudo procesar la respuesta")
       }
 
       if (!res.ok) {
-        // Manejo específico de errores del backend
         if (data?.errorCode === 'EMAIL_EXISTS') {
           throw new Error("Este email ya está registrado. ¿Quieres iniciar sesión en su lugar?")
         }
@@ -136,14 +122,11 @@ export default function LoginPage() {
         throw new Error(errorMessage)
       }
 
-      // Verificar que la respuesta tenga la estructura esperada
       if (!data?.data?.token || !data?.data?.user) {
         throw new Error("Error del servidor - respuesta incompleta")
       }
 
-      // Si registro OK, usar el contexto para login automático
       login(data.data.token, data.data.user)
-
       router.push(redirectTo)
     } catch (err: any) {
       console.error("[v0] Error en registro:", err)
@@ -169,7 +152,6 @@ export default function LoginPage() {
         )}
 
         {!isRegistering ? (
-          // Formulario de Login
           <>
             <form onSubmit={handleManualLogin} className="space-y-4">
               <input
@@ -234,7 +216,6 @@ export default function LoginPage() {
             </div>
           </>
         ) : (
-          // Formulario de Registro
           <>
             <form onSubmit={handleManualRegister} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -298,5 +279,18 @@ export default function LoginPage() {
         )}
       </div>
     </div>
+  )
+}
+
+// 2. Envolvemos el contenido en Suspense para el build
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }

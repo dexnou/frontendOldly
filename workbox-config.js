@@ -1,14 +1,15 @@
 module.exports = {
-  globDirectory: '.next/',
+  // Cambiamos a public para evitar errores de lectura en .next
+  globDirectory: 'public/',
   globPatterns: [
     '**/*.{js,css,html,png,jpg,jpeg,svg,woff,woff2,ttf,eot,ico,json}'
   ],
   swDest: 'public/sw.js',
   skipWaiting: true,
   clientsClaim: true,
+  // Mantenemos tus reglas avanzadas
   runtimeCaching: [
     {
-      // Cache para Google Fonts stylesheets
       urlPattern: /^https:\/\/fonts\.googleapis\.com\//,
       handler: 'StaleWhileRevalidate',
       options: {
@@ -16,19 +17,18 @@ module.exports = {
       },
     },
     {
-      // Cache para Google Fonts webfonts
       urlPattern: /^https:\/\/fonts\.gstatic\.com\//,
       handler: 'CacheFirst',
       options: {
         cacheName: 'google-fonts-webfonts',
         expiration: {
           maxEntries: 30,
-          maxAgeSeconds: 60 * 60 * 24 * 365, // 1 año
+          maxAgeSeconds: 60 * 60 * 24 * 365,
         },
       },
     },
     {
-      // Cache para API calls del juego
+      // Cache para API calls (Simplificado para evitar el error)
       urlPattern: /^https?.*\/api\/.*$/,
       handler: 'NetworkFirst',
       options: {
@@ -36,15 +36,11 @@ module.exports = {
         networkTimeoutSeconds: 10,
         expiration: {
           maxEntries: 100,
-          maxAgeSeconds: 60 * 5, // 5 minutos
-        },
-        cacheKeyWillBeUsed: async ({ request }) => {
-          return `${request.url}?timestamp=${Math.floor(Date.now() / 1000 / 60 / 5)}`; // Cache por 5 minutos
+          maxAgeSeconds: 300, // 5 minutos
         },
       },
     },
     {
-      // Cache para proxy calls
       urlPattern: /.*\/api\/proxy\/.*$/,
       handler: 'NetworkFirst',
       options: {
@@ -52,24 +48,22 @@ module.exports = {
         networkTimeoutSeconds: 10,
         expiration: {
           maxEntries: 50,
-          maxAgeSeconds: 60 * 5, // 5 minutos
+          maxAgeSeconds: 300,
         },
       },
     },
     {
-      // Cache para imágenes
       urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
       handler: 'CacheFirst',
       options: {
         cacheName: 'images-cache',
         expiration: {
           maxEntries: 100,
-          maxAgeSeconds: 60 * 60 * 24 * 30, // 30 días
+          maxAgeSeconds: 60 * 60 * 24 * 30,
         },
       },
     },
     {
-      // Cache para navegación (páginas)
       urlPattern: /^https?.*\//,
       handler: 'NetworkFirst',
       options: {
@@ -77,36 +71,40 @@ module.exports = {
         networkTimeoutSeconds: 3,
         expiration: {
           maxEntries: 50,
-          maxAgeSeconds: 60 * 60 * 24, // 1 día
+          maxAgeSeconds: 60 * 60 * 24,
         },
       },
     },
     {
-      // Cache para archivos estáticos de Next.js
+      // Importante: Esto cachea los archivos de Next.js que ya no estamos leyendo con globDirectory
       urlPattern: /\/_next\/static\/.*/,
-      handler: 'CacheFirst',
+      handler: 'StaleWhileRevalidate', 
       options: {
         cacheName: 'next-static-cache',
         expiration: {
           maxEntries: 100,
-          maxAgeSeconds: 60 * 60 * 24 * 365, // 1 año
+          maxAgeSeconds: 60 * 60 * 24 * 365,
         },
       },
     },
     {
-      // Cache para chunks de JavaScript
       urlPattern: /\.(?:js|css)$/,
       handler: 'StaleWhileRevalidate',
       options: {
         cacheName: 'static-resources',
         expiration: {
           maxEntries: 100,
-          maxAgeSeconds: 60 * 60 * 24 * 7, // 1 semana
+          maxAgeSeconds: 60 * 60 * 24 * 7,
         },
       },
     },
   ],
-  // Ignorar archivos específicos
+  ignoreURLParametersMatching: [
+    /^utm_/,
+    /^fbclid$/
+  ],
+  // Fallback para modo offline
   navigateFallback: '/offline.html',
-  navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
+  // Evitar que el fallback intercepte rutas de API o archivos next
+  navigateFallbackDenylist: [/^\/api\//, /^\/_next\//, /\.[a-z]+$/],
 };

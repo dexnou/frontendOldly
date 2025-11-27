@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 
-export default function AuthCallbackPage() {
+// 1. Separamos la lógica que usa useSearchParams en un componente hijo
+function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -44,32 +45,46 @@ export default function AuthCallbackPage() {
   }, [searchParams, router]);
 
   return (
+    <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md text-center">
+      {status === "loading" && (
+        <>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold mb-2">Procesando login...</h2>
+          <p className="text-gray-600">Configurando tu sesión</p>
+        </>
+      )}
+      
+      {status === "success" && (
+        <>
+          <div className="text-green-500 text-6xl mb-4">✅</div>
+          <h2 className="text-xl font-semibold mb-2 text-green-600">¡Login exitoso!</h2>
+          <p className="text-gray-600">Redirigiendo...</p>
+        </>
+      )}
+      
+      {status === "error" && (
+        <>
+          <div className="text-red-500 text-6xl mb-4">❌</div>
+          <h2 className="text-xl font-semibold mb-2 text-red-600">Error en el login</h2>
+          <p className="text-gray-600">Redirigiendo al login...</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// 2. El componente de página principal envuelve el contenido en Suspense
+export default function AuthCallbackPage() {
+  return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md text-center">
-        {status === "loading" && (
-          <>
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <h2 className="text-xl font-semibold mb-2">Procesando login...</h2>
-            <p className="text-gray-600">Configurando tu sesión</p>
-          </>
-        )}
-        
-        {status === "success" && (
-          <>
-            <div className="text-green-500 text-6xl mb-4">✅</div>
-            <h2 className="text-xl font-semibold mb-2 text-green-600">¡Login exitoso!</h2>
-            <p className="text-gray-600">Redirigiendo...</p>
-          </>
-        )}
-        
-        {status === "error" && (
-          <>
-            <div className="text-red-500 text-6xl mb-4">❌</div>
-            <h2 className="text-xl font-semibold mb-2 text-red-600">Error en el login</h2>
-            <p className="text-gray-600">Redirigiendo al login...</p>
-          </>
-        )}
-      </div>
+      <Suspense fallback={
+        <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md text-center">
+           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+           <h2 className="text-xl font-semibold mb-2">Cargando...</h2>
+        </div>
+      }>
+        <AuthContent />
+      </Suspense>
     </div>
   );
 }

@@ -22,7 +22,7 @@ interface CardData {
   qrToken: string
   difficulty: string
   spotifyUrl: string
-  previewUrl?: string
+  previewUrl?: string // Se mantiene en la interfaz de datos por si viene del backend
   artist: {
     id: number
     name: string
@@ -52,7 +52,7 @@ interface CardForm {
   albumCoverUrl: string
   songName: string
   spotifyUrl: string
-  previewUrl: string
+  // previewUrl eliminado del formulario
   difficulty: "easy" | "medium" | "hard"
 }
 
@@ -80,7 +80,6 @@ export default function AdminCardsPage() {
     albumCoverUrl: "",
     songName: "",
     spotifyUrl: "",
-    previewUrl: "",
     difficulty: "medium",
   })
 
@@ -134,11 +133,10 @@ export default function AdminCardsPage() {
       albumCoverUrl: card.album?.coverUrl || "",
       songName: card.songName,
       spotifyUrl: card.spotifyUrl || "",
-      previewUrl: card.previewUrl || "",
+      // previewUrl no se carga en el formulario
       difficulty: (card.difficulty as "easy" | "medium" | "hard") || "medium",
     })
     setIsFormOpen(true)
-    // Scroll hacia arriba para ver el formulario
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -227,7 +225,6 @@ export default function AdminCardsPage() {
       albumCoverUrl: "",
       songName: "",
       spotifyUrl: "",
-      previewUrl: "",
       difficulty: "medium",
     })
   }
@@ -250,7 +247,7 @@ export default function AdminCardsPage() {
                   resetForm()
                 } else {
                   setIsFormOpen(true)
-                  resetForm() // Asegurar que esté limpio al abrir
+                  resetForm()
                 }
               }} 
               className="bg-white text-black hover:bg-zinc-200"
@@ -297,8 +294,7 @@ export default function AdminCardsPage() {
                           setDeletingCard(null)
                           setDeleteWarning(null)
                         }}
-                        variant="outline"
-                        className="border-zinc-700 text-zinc-300 hover:bg-zinc-900"
+                        className="bg-white text-black hover:bg-zinc-200"
                       >
                         Cancelar
                       </Button>
@@ -313,8 +309,7 @@ export default function AdminCardsPage() {
                       </Button>
                       <Button
                         onClick={() => setDeletingCard(null)}
-                        variant="outline"
-                        className="border-zinc-700 text-zinc-300 hover:bg-zinc-900"
+                        className="bg-white text-black hover:bg-zinc-200"
                       >
                         Cancelar
                       </Button>
@@ -478,31 +473,18 @@ export default function AdminCardsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="spotifyUrl" className="text-zinc-300">
-                      URL de Spotify
-                    </Label>
-                    <Input
-                      id="spotifyUrl"
-                      value={cardForm.spotifyUrl}
-                      onChange={(e) => setCardForm({ ...cardForm, spotifyUrl: e.target.value })}
-                      className="bg-zinc-900 border-zinc-800 text-white"
-                      placeholder="https://open.spotify.com/..."
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="previewUrl" className="text-zinc-300">
-                      URL de Preview
-                    </Label>
-                    <Input
-                      id="previewUrl"
-                      value={cardForm.previewUrl}
-                      onChange={(e) => setCardForm({ ...cardForm, previewUrl: e.target.value })}
-                      className="bg-zinc-900 border-zinc-800 text-white"
-                      placeholder="https://..."
-                    />
-                  </div>
+                {/* URL de Spotify ahora ocupa todo el ancho */}
+                <div className="space-y-2">
+                  <Label htmlFor="spotifyUrl" className="text-zinc-300">
+                    URL de Spotify
+                  </Label>
+                  <Input
+                    id="spotifyUrl"
+                    value={cardForm.spotifyUrl}
+                    onChange={(e) => setCardForm({ ...cardForm, spotifyUrl: e.target.value })}
+                    className="bg-zinc-900 border-zinc-800 text-white"
+                    placeholder="https://open.spotify.com/..."
+                  />
                 </div>
 
                 <div className="flex gap-3 pt-4">

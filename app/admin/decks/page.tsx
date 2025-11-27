@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Save, X } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Plus, Pencil, Save, X, Eye, Music, Disc } from "lucide-react"
 
 interface Deck {
   id: number
@@ -26,13 +27,21 @@ interface Deck {
   _count?: { cards: number }
 }
 
+interface DeckCard {
+  id: string
+  songName: string
+  difficulty: string
+  artist: { name: string }
+  album?: { title: string }
+}
+
 export default function AdminDecksPage() {
   const router = useRouter()
   const { admin, isLoading } = useAdminAuth()
   const [decks, setDecks] = useState<Deck[]>([])
+  
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
-
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -44,6 +53,10 @@ export default function AdminDecksPage() {
     labelArtist: "Artista",
     labelAlbum: "Álbum"
   })
+
+  const [viewingDeck, setViewingDeck] = useState<Deck | null>(null)
+  const [deckCards, setDeckCards] = useState<DeckCard[]>([])
+  const [loadingCards, setLoadingCards] = useState(false)
 
   useEffect(() => {
     if (!isLoading && !admin) router.push("/admin/login")
@@ -67,6 +80,27 @@ export default function AdminDecksPage() {
     }
   }
 
+  const fetchDeckCards = async (deckId: number) => {
+    setLoadingCards(true)
+    setDeckCards([])
+    try {
+      const res = await fetch(`/api/proxy/cards?deckId=${deckId}&limit=100`)
+      if (res.ok) {
+        const data = await res.json()
+        setDeckCards(data.data.cards)
+      }
+    } catch (error) {
+      console.error("Error fetching deck cards:", error)
+    } finally {
+      setLoadingCards(false)
+    }
+  }
+
+  const handleViewCards = (deck: Deck) => {
+    setViewingDeck(deck)
+    fetchDeckCards(deck.id)
+  }
+
   const handleSubmit = async () => {
     const url = editingId 
       ? `/api/proxy/admin/decks/${editingId}` 
@@ -84,25 +118,16 @@ export default function AdminDecksPage() {
         body: JSON.stringify(formData)
       })
 
-      const data = await res.json() // Leemos la respuesta
-
       if (res.ok) {
         fetchDecks()
         setIsFormOpen(false)
         resetForm()
-        alert(editingId ? "Mazo actualizado correctamente" : "Mazo creado correctamente")
       } else {
-        // Mostrar el mensaje específico del backend o los errores de validación
-        if (data.errors && Array.isArray(data.errors)) {
-          const errorMessages = data.errors.map((e: any) => e.msg).join('\n')
-          alert(`Error de validación:\n${errorMessages}`)
-        } else {
-          alert(data.message || "Error al guardar el mazo")
-        }
+        alert("Error al guardar el mazo")
       }
     } catch (error) {
       console.error("Error submitting deck:", error)
-      alert("Error de conexión con el servidor")
+      alert("Error de conexión")
     }
   }
 
@@ -201,7 +226,6 @@ export default function AdminDecksPage() {
                   <Button onClick={handleSubmit} className="bg-white text-black hover:bg-zinc-200">
                     <Save className="mr-2 h-4 w-4" /> Guardar
                   </Button>
-                  {/* Botón Cancelar con el mismo estilo solicitado */}
                   <Button onClick={() => setIsFormOpen(false)} className="bg-white text-black hover:bg-zinc-200">
                     <X className="mr-2 h-4 w-4" /> Cancelar
                   </Button>
@@ -212,24 +236,92 @@ export default function AdminDecksPage() {
 
           <div className="grid gap-4">
             {decks.map((deck) => (
-              <Card key={deck.id} className="bg-zinc-950 border-zinc-800">
+              <Card key={deck.id} className="bg-zinc-950 border-zinc-800 hover:border-zinc-700 transition-colors">
                 <CardContent className="flex items-center justify-between p-6">
-                  <div>
-                    <h3 className="text-xl font-bold text-white">{deck.title}</h3>
-                    <p className="text-zinc-400 text-sm">{deck.description}</p>
+                  <div className="cursor-pointer flex-1" onClick={() => handleViewCards(deck)}>
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-xl font-bold text-white hover:text-blue-400 transition-colors">{deck.title}</h3>
+                        {!deck.active && <span className="text-xs bg-red-900/50 text-red-200 px-2 py-0.5 rounded border border-red-800">Inactivo</span>}
+                    </div>
+                    <p className="text-zinc-400 text-sm line-clamp-1">{deck.description}</p>
                     <div className="flex gap-4 mt-2 text-xs text-zinc-500">
                       <span>Tema: {deck.theme}</span>
-                      <span>Cartas: {deck._count?.cards || 0}</span>
-                      <span className="text-zinc-400">Labels: {deck.labelSong}, {deck.labelArtist}, {deck.labelAlbum}</span>
+                      <span className="text-zinc-300 font-medium">Cartas: {deck._count?.cards || 0}</span>
+                      <span className="text-zinc-600">Labels: {deck.labelSong}, {deck.labelArtist}, {deck.labelAlbum}</span>
                     </div>
                   </div>
-                  <Button onClick={() => handleEdit(deck)} variant="ghost" className="text-zinc-400 hover:text-white">
-                    <Pencil className="h-5 w-5" />
-                  </Button>
+                  
+                  <div className="flex gap-2">
+                    {/* BOTÓN ACTUALIZADO: Fondo blanco, texto negro */}
+                    <Button 
+                      onClick={() => handleViewCards(deck)} 
+                      size="sm" 
+                      className="bg-white text-black hover:bg-zinc-200"
+                    >
+                        <Eye className="h-4 w-4 mr-2" /> Ver Cartas
+                    </Button>
+                    
+                    <Button onClick={() => handleEdit(deck)} variant="ghost" className="text-zinc-400 hover:text-blue-400 hover:bg-blue-900/20">
+                        <Pencil className="h-5 w-5" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
+
+          <Dialog open={!!viewingDeck} onOpenChange={(open) => !open && setViewingDeck(null)}>
+            <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-3xl max-h-[85vh] flex flex-col">
+              <DialogHeader>
+                <DialogTitle className="text-xl flex items-center gap-2">
+                  <Music className="w-5 h-5 text-blue-400" />
+                  Cartas de {viewingDeck?.title}
+                </DialogTitle>
+                <div className="text-sm text-zinc-400">
+                    Total: {deckCards.length} cartas
+                </div>
+              </DialogHeader>
+              
+              <div className="flex-1 overflow-y-auto pr-2 mt-4">
+                {loadingCards ? (
+                    <div className="flex justify-center py-12">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                    </div>
+                ) : deckCards.length === 0 ? (
+                    <div className="text-center py-12 text-zinc-500">
+                        No hay cartas en este mazo todavía.
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {deckCards.map((card) => (
+                            <div key={card.id} className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-3 hover:bg-zinc-900 transition-colors">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h4 className="font-semibold text-white text-sm line-clamp-1">{card.songName}</h4>
+                                        <p className="text-xs text-zinc-400 mt-0.5">{card.artist.name}</p>
+                                        {card.album && <p className="text-[10px] text-zinc-500 mt-0.5 flex items-center gap-1"><Disc className="w-3 h-3"/> {card.album.title}</p>}
+                                    </div>
+                                    <span className={`text-[10px] px-2 py-0.5 rounded border capitalize ${
+                                        card.difficulty === 'easy' ? 'bg-green-900/30 text-green-400 border-green-900' :
+                                        card.difficulty === 'medium' ? 'bg-yellow-900/30 text-yellow-400 border-yellow-900' :
+                                        'bg-red-900/30 text-red-400 border-red-900'
+                                    }`}>
+                                        {card.difficulty}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+              </div>
+              
+              <div className="mt-4 flex justify-end pt-2 border-t border-zinc-800">
+                <Button onClick={() => setViewingDeck(null)} className="bg-white text-black hover:bg-zinc-200">
+                    Cerrar
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>
