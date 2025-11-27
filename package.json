@@ -5,7 +5,7 @@
   "scripts": {
     "build": "next build && npm run build:pwa",
     "build:pwa": "workbox generateSW workbox-config.js",
-    "dev": "next dev",
+    "dev": "next dev -p 3009",
     "lint": "eslint",
     "start": "next start",
     "generate-icons": "powershell -ExecutionPolicy Bypass -File public/generate-icons.ps1"
