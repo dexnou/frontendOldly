@@ -5,7 +5,7 @@
 // URL del backend - prioriza la variable de entorno, luego ngrok, y finalmente localhost
 export const BACKEND_URL = 
   process.env.NEXT_PUBLIC_BACKEND_URL || 
-  "https://ellena-hyperaemic-numbers.ngrok-free.dev" || 
+  "http://localhost:3001" || 
   "http://localhost:3001"
 
 // URL base para las APIs que pasan por el proxy
