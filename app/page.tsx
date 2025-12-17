@@ -1,13 +1,15 @@
 "use client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import PurchaseModal from "@/components/PurchaseModal"
 import DeckCard from "@/components/features/decks/DeckCard"
-import { ShoppingCart, TestTube } from "lucide-react"
+import { ShoppingCart, TestTube, LogOut, User } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001" || "http://localhost:3001"
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
 
 interface Deck {
   id: string
@@ -86,93 +88,134 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background text-primary">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-current"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <nav className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link
-            href="/"
-            className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
-          >
-            Oldy Funs Music Box
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {/* Navbar Minimalista */}
+      <nav className="border-b border-border/50 bg-background/95 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
+            {/* Logo pequeño en navbar */}
+            <div className="relative w-8 h-8 rounded-full overflow-hidden border border-border">
+              <Image 
+                src="/logo.png" 
+                alt="Oldy Fans" 
+                fill 
+                className="object-cover"
+                onError={(e) => {
+                  // Fallback si no está la imagen aún
+                  (e.currentTarget as HTMLImageElement).style.display = 'none'
+                }}
+              />
+              <div className="absolute inset-0 bg-primary/20" /> 
+            </div>
+            <span className="font-bold text-lg tracking-tight">Oldy Fans</span>
           </Link>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {isLoggedIn ? (
               <>
-                <span className="text-zinc-400 text-sm">Hola, {user?.firstname || user?.email || "Usuario"}</span>
-                <button
+                <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-full border border-border">
+                   <User className="w-4 h-4 text-muted-foreground" />
+                   <span className="text-sm font-medium truncate max-w-[100px]">
+                     {user?.firstname || "Usuario"}
+                   </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={logout}
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors text-sm font-medium"
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  title="Cerrar sesión"
                 >
-                  Cerrar sesión
-                </button>
+                  <LogOut className="w-5 h-5" />
+                </Button>
               </>
             ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors text-sm font-medium"
-                >
-                  Iniciar sesión
+              <div className="flex items-center gap-2">
+                <Link href="/login">
+                  <Button variant="ghost" className="font-medium">
+                    Ingresar
+                  </Button>
                 </Link>
-                <Link
-                  href="/login"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
-                >
-                  Registrarse
+                <Link href="/login">
+                  <Button className="font-medium shadow-lg shadow-primary/10">
+                    Registrarse
+                  </Button>
                 </Link>
-              </>
+              </div>
             )}
           </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-white via-zinc-300 to-zinc-500 bg-clip-text text-transparent">
-            Descubre la música de una forma única
+      <main className="flex-1 max-w-7xl mx-auto px-6 py-12 w-full">
+        {/* Hero Section con Logo Grande */}
+        <div className="flex flex-col items-center text-center mb-20">
+          <div className="relative w-32 h-32 md:w-40 md:h-40 mb-8 rounded-full shadow-2xl shadow-black/50 border-4 border-secondary overflow-hidden bg-secondary">
+             <Image 
+                src="/logo.png" 
+                alt="Oldy Funs Logo" 
+                fill 
+                className="object-cover"
+                priority
+              />
+          </div>
+          
+          <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight">
+            Music Box
           </h1>
-          <p className="text-xl text-zinc-400 mb-8 max-w-2xl mx-auto">
-            Explora colecciones musicales, desbloquea canciónes y juega con códigos QR
+          <p className="text-xl text-muted-foreground mb-10 max-w-xl mx-auto leading-relaxed">
+            Colecciones musicales interactivas. <br/>
+            Desbloquea, escanea y juega.
           </p>
 
-          <div className="flex items-center justify-center gap-4">
-            <button
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <Button
               onClick={handlePurchaseClick}
-              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-semibold text-lg transition-all hover:scale-105 flex items-center gap-2 shadow-lg shadow-blue-500/20"
+              size="lg"
+              className="px-8 h-12 rounded-full font-semibold shadow-xl shadow-primary/20 hover:scale-105 transition-transform"
             >
-              <ShoppingCart className="w-5 h-5" />
-              {isLoggedIn ? "Comprar Decks" : "Comprar ahora"}
-            </button>
-            <Link
-              href="/test/cards"
-              className="px-6 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium transition-all flex items-center gap-2"
-            >
-              <TestTube className="w-5 h-5" />
-              Test QR Cards
+              <ShoppingCart className="w-5 h-5 mr-2" />
+              {isLoggedIn ? "Tienda de Decks" : "Comprar Ahora"}
+            </Button>
+            
+            <Link href="/test/cards">
+              <Button 
+                variant="outline" 
+                size="lg"
+                className="px-6 h-12 rounded-full border-border bg-transparent hover:bg-secondary transition-colors"
+              >
+                <TestTube className="w-5 h-5 mr-2" />
+                Probar QR
+              </Button>
             </Link>
           </div>
         </div>
 
+        {/* Sección de Decks */}
         <section>
-          <h2 className="text-3xl font-bold mb-8 text-white">Decks disponibles</h2>
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <span className="w-1 h-6 bg-primary rounded-full inline-block"></span>
+              Mis Decks
+            </h2>
+          </div>
 
           {loadingDecks ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-80 bg-zinc-900 rounded-xl animate-pulse" />
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-64 bg-secondary/50 rounded-xl animate-pulse border border-border/50" />
               ))}
             </div>
           ) : decks.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-zinc-500 text-lg">No hay decks disponibles en este momento</p>
+            <div className="text-center py-20 bg-secondary/20 rounded-2xl border border-dashed border-border">
+              <p className="text-muted-foreground text-lg">No hay decks disponibles en este momento</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -183,6 +226,10 @@ export default function HomePage() {
           )}
         </section>
       </main>
+
+      <footer className="py-8 text-center text-muted-foreground text-sm border-t border-border mt-auto bg-background">
+        <p>© 2024 Oldy Fans Music Box</p>
+      </footer>
 
       <PurchaseModal
         isOpen={showPurchaseModal}

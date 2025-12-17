@@ -4,9 +4,12 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { motion, AnimatePresence } from "framer-motion"
-import { ExternalLink, Share2, Copy, Twitter, Home } from "lucide-react"
+import { ExternalLink, Share2, Copy, Twitter, Home, Music2, Users, Smartphone, Trophy, CheckCircle2, LogOut } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001" || "http://localhost:3001"
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
 
 interface GameCard {
   id: string
@@ -56,7 +59,7 @@ export default function PlayPage() {
   const [error, setError] = useState("")
   
   const [gameStarted, setGameStarted] = useState(false)
-  const [isGameOver, setIsGameOver] = useState(false) // NUEVO: Estado de Fin de Juego
+  const [isGameOver, setIsGameOver] = useState(false)
   const [answered, setAnswered] = useState(false)
   
   const [gameMode, setGameMode] = useState<'casual' | 'competitive' | 'competitive_turns' | null>(null)
@@ -92,7 +95,7 @@ export default function PlayPage() {
     }
 
     if (!cardId) {
-      setError('ID de carta no encontrado en la URL')
+      setError('ID de carta no encontrado')
       setLoading(false)
       return
     }
@@ -101,7 +104,7 @@ export default function PlayPage() {
     const isQrToken = typeof cardId === 'string' && cardId.length === 16
     
     if (!isNumericId && !isQrToken) {
-      setError('Formato de carta inválido. Debe ser un ID numérico o token QR válido.')
+      setError('Formato de carta inválido.')
       setLoading(false)
       return
     }
@@ -134,9 +137,9 @@ export default function PlayPage() {
       return await res.json()
     } catch (jsonError) {
       if (res.status === 429) {
-        throw new Error('Demasiadas solicitudes. Por favor espera un momento antes de intentar nuevamente.')
+        throw new Error('Demasiadas solicitudes.')
       }
-      throw new Error(`Error de servidor (${res.status}): Respuesta inválida del servidor`)
+      throw new Error(`Error de servidor (${res.status})`)
     }
   }
 
@@ -185,29 +188,18 @@ export default function PlayPage() {
     try {
       const url = `/api/proxy/cards/${cardId}/play`
       const res = await fetch(url, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       })
-
       const data = await safeJsonParse(res, 'fetchGameCard')
-
       if (!res.ok) {
-        if (res.status === 429) {
-          setError("Demasiadas solicitudes. Por favor espera un momento antes de intentar nuevamente.")
+        if (data.needsAccess) {
+          setError(`Necesitas activar el mazo "${data.deck?.title}"`)
           return
         }
-        if (res.status === 403 && data.needsAccess) {
-          setError(`No tienes acceso al mazo "${data.deck?.title}". ¡Actívalo primero!`)
-          return
-        }
-        throw new Error(data.message || "Error cargando carta para jugar")
+        throw new Error(data.message || "Error cargando carta")
       }
-
       setGameCard(data.data.card)
     } catch (err: any) {
-      console.error('❌ Error in fetchGameCard:', err)
       setError(err.message || "Error cargando juego")
     } finally {
       setLoading(false)
@@ -217,14 +209,9 @@ export default function PlayPage() {
   const checkActiveCompetitiveGame = async (deckId: string) => {
     try {
       if (!token) return null
-      
       const res = await fetch(`/api/proxy/game/active-competitive/${deckId}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       })
-
       if (res.ok) {
         const data = await safeJsonParse(res, 'checkActiveCompetitiveGame')
         if (data.data?.game) {
@@ -234,217 +221,112 @@ export default function PlayPage() {
           setCurrentTurnParticipantId(data.data.game.currentTurnParticipantId)
           setGameStarted(true)
           setIsActiveCompetitiveSession(true)
-          
-          const initialAnswers: {[key: string]: {songKnew: boolean, artistKnew: boolean, albumKnew: boolean}} = {}
+          const initialAnswers: any = {}
           data.data.game.participants.forEach((participant: any) => {
-            initialAnswers[participant.id] = {
-              songKnew: false,
-              artistKnew: false,
-              albumKnew: false
-            }
+            initialAnswers[participant.id] = { songKnew: false, artistKnew: false, albumKnew: false }
           })
           setParticipantAnswers(initialAnswers)
         }
       }
-    } catch (err: any) {
-      console.log('⚠️ Error checking for active games:', err.message)
-    }
+    } catch (err: any) { console.log('Checking active game error:', err) }
   }
 
   const handleStartGame = () => {
-    if (gameMode === 'casual') {
-      setGameStarted(true)
-    } else if (gameMode === 'competitive' || gameMode === 'competitive_turns') {
-      startCompetitiveGame()
-    }
+    if (gameMode === 'casual') setGameStarted(true)
+    else if (gameMode === 'competitive' || gameMode === 'competitive_turns') startCompetitiveGame()
   }
 
   const handleModeSelection = (mode: 'casual' | 'competitive' | 'competitive_turns') => {
     setGameMode(mode)
     setFormError("")
-    if (mode === 'casual') {
-      startCasualSession()
-    }
+    if (mode === 'casual') startCasualSession()
   }
 
-  const addPlayer = () => {
-    if (players.length < 8) {
-      setPlayers([...players, ''])
-    }
-  }
-
-  const removePlayer = (index: number) => {
-    if (players.length > 1) {
-      setPlayers(players.filter((_, i) => i !== index))
-      setFormError("")
-    }
-  }
-
+  const addPlayer = () => players.length < 8 && setPlayers([...players, ''])
+  const removePlayer = (index: number) => players.length > 1 && setPlayers(players.filter((_, i) => i !== index))
   const updatePlayer = (index: number, name: string) => {
-    const updatedPlayers = [...players]
-    updatedPlayers[index] = name
-    setPlayers(updatedPlayers)
-    setFormError("")
+    const updated = [...players]; updated[index] = name; setPlayers(updated); setFormError("")
   }
 
   const startCompetitiveGame = async () => {
     setFormError("")
     const validPlayers = players.filter(p => p.trim().length > 0)
+    if (validPlayers.length === 0) return setFormError("Agrega al menos un jugador")
     
-    if (validPlayers.length === 0) {
-      setFormError("Debes agregar al menos un jugador")
-      return
-    }
+    // Validate unique names
+    const names = validPlayers.map(p => p.trim().toLowerCase())
+    if (names.length !== new Set(names).size) return setFormError("Nombres duplicados no permitidos")
 
-    const names = validPlayers.map(p => p.trim().toLowerCase());
-    const uniqueNames = new Set(names);
-    if (names.length !== uniqueNames.size) {
-      setFormError("No puede haber dos participantes con el mismo nombre.");
-      return;
-    }
-
-    if (!token) {
-      setError("Error de autenticación. Por favor, recarga la página.")
-      return
-    }
+    if (!token) return setError("Error de autenticación")
 
     try {
       const res = await fetch(`/api/proxy/game/start-competitive`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           deckId: gameCard?.deck.id,
           participants: validPlayers.map(name => ({ name: name.trim() })),
           mode: gameMode
         })
       })
-
       const data = await res.json()
 
       if (!res.ok) {
         if (data.errorCode === 'ACTIVE_GAME_EXISTS') {
-          setActiveGameError({
-            gameId: data.data?.activeGameId,
-            message: data.message
-          })
+          setActiveGameError({ gameId: data.data?.activeGameId, message: data.message })
           return
         }
-        if (data.errorCode === 'DUPLICATE_PARTICIPANT_NAMES' || data.errorCode === 'INVALID_PARTICIPANT_NAME') {
-             setFormError(data.message || "Error con los nombres de los participantes");
-             return;
-        }
-
-        throw new Error(data.message || "Error iniciando juego competitivo")
+        if (data.errorCode === 'DUPLICATE_PARTICIPANT_NAMES') return setFormError("Nombres duplicados")
+        throw new Error(data.message)
       }
 
       setGameId(data.data.game.id)
       setGameParticipants(data.data.game.participants)
       setCurrentTurnParticipantId(data.data.game.currentTurnParticipantId)
       setIsActiveCompetitiveSession(true)
-      
-      const initialAnswers: {[key: string]: {songKnew: boolean, artistKnew: boolean, albumKnew: boolean}} = {}
-      data.data.game.participants.forEach((participant: any) => {
-        initialAnswers[participant.id] = {
-          songKnew: false,
-          artistKnew: false,
-          albumKnew: false
-        }
-      })
+      const initialAnswers: any = {}
+      data.data.game.participants.forEach((p: any) => initialAnswers[p.id] = { songKnew: false, artistKnew: false, albumKnew: false })
       setParticipantAnswers(initialAnswers)
-      
       setGameStarted(true)
-    } catch (err: any) {
-      console.error('Error starting competitive game:', err)
-      setError(err.message || "Error iniciando juego competitivo")
-    }
+    } catch (err: any) { setError(err.message) }
   }
 
   const handleRevealAnswer = async () => {
     if (!gameCard || revealing) return
-
     setRevealing(true)
     try {
-      let res;
-      
-      if (gameMode === 'casual') {
-        res = await fetch(`/api/proxy/cards/${cardId}/casual-play`, {
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        })
-      } else {
-        res = await fetch(`/api/proxy/cards/${cardId}/reveal`, {
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        })
-      }
-
+      const url = gameMode === 'casual' ? `/api/proxy/cards/${cardId}/casual-play` : `/api/proxy/cards/${cardId}/reveal`
+      const res = await fetch(url, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
       const data = await res.json()
-
-      if (!res.ok) throw new Error(data.message || "Error revelando respuesta")
-
+      if (!res.ok) throw new Error(data.message)
       setRevealedCard(data.data.card)
       setAnswered(true)
-      
-      if (gameMode === 'competitive' || gameMode === 'competitive_turns') {
-        setShowScoring(true)
-      }
-    } catch (err: any) {
-      setError(err.message || "Error revelando respuesta")
-    } finally {
-      setRevealing(false)
-    }
+      if (gameMode !== 'casual') setShowScoring(true)
+    } catch (err: any) { setError(err.message) } finally { setRevealing(false) }
   }
 
   const handleSubmitScore = async () => {
     if (!gameCard || scoring) return
-
     const numericCardId = parseInt(gameCard.id)
-    if (isNaN(numericCardId)) {
-      setError('ID numérico de carta no disponible')
-      return
-    }
-
+    if (isNaN(numericCardId)) return setError('ID inválido')
+    
     setScoring(true)
     try {
       let res;
-      
-      if (gameMode === 'competitive_turns' && gameId) {
-        if (!currentTurnParticipantId) throw new Error('Error de turno: No hay jugador activo')
-
+      if (gameMode === 'competitive_turns' && gameId && currentTurnParticipantId) {
         res = await fetch(`/api/proxy/game/${gameId}/submit-turn-round`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            cardId: numericCardId,
-            participantId: currentTurnParticipantId,
-            userKnew: participantAnswers[currentTurnParticipantId]
-          })
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ cardId: numericCardId, participantId: currentTurnParticipantId, userKnew: participantAnswers[currentTurnParticipantId] })
         })
-
       } else if (gameMode === 'competitive' && gameId) {
-        const participantAnswersArray = Object.entries(participantAnswers).map(([participantId, answers]) => ({
-          participantId: parseInt(participantId),
-          userKnew: {
-            songKnew: Boolean(answers?.songKnew),
-            artistKnew: Boolean(answers?.artistKnew),
-            albumKnew: Boolean(answers?.albumKnew)
-          }
+        const participantAnswersArray = Object.entries(participantAnswers).map(([pid, ans]) => ({
+          participantId: parseInt(pid), userKnew: { songKnew: Boolean(ans?.songKnew), artistKnew: Boolean(ans?.artistKnew), albumKnew: Boolean(ans?.albumKnew) }
         }))
-
         res = await fetch(`/api/proxy/game/${gameId}/submit-competitive-round`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            cardId: numericCardId,
-            participantAnswers: participantAnswersArray
-          })
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ cardId: numericCardId, participantAnswers: participantAnswersArray })
         })
       } else {
         res = await fetch(`/api/proxy/game/score-card`, {
@@ -453,616 +335,379 @@ export default function PlayPage() {
           body: JSON.stringify({ cardId: numericCardId, userKnew })
         })
       }
-
       const data = await res.json()
-
-      if (!res.ok) throw new Error(data.message || "Error calculando puntuación")
-
+      if (!res.ok) throw new Error(data.message)
+      
       setScoreResult(data.data)
       setShowScoring(false)
-      
-      if (data.data.game?.participants) {
-        setGameParticipants(data.data.game.participants)
-      }
-      if (data.data.game?.nextTurn?.participantId) {
-        setCurrentTurnParticipantId(data.data.game.nextTurn.participantId)
-      } else if (data.data.game?.currentTurnParticipantId) {
-        setCurrentTurnParticipantId(data.data.game.currentTurnParticipantId)
-      }
+      if (data.data.game?.participants) setGameParticipants(data.data.game.participants)
+      if (data.data.game?.nextTurn?.participantId) setCurrentTurnParticipantId(data.data.game.nextTurn.participantId)
+      else if (data.data.game?.currentTurnParticipantId) setCurrentTurnParticipantId(data.data.game.currentTurnParticipantId)
 
-    } catch (err: any) {
-      setError(err.message || "Error calculando puntuación")
-    } finally {
-      setScoring(false)
-    }
+    } catch (err: any) { setError(err.message) } finally { setScoring(false) }
   }
 
   const handleParticipantCheckboxChange = (participantId: string, type: 'songKnew' | 'artistKnew' | 'albumKnew') => {
     setParticipantAnswers(prev => ({
-      ...prev,
-      [participantId]: {
-        ...prev[participantId],
-        [type]: !prev[participantId][type]
-      }
+      ...prev, [participantId]: { ...prev[participantId], [type]: !prev[participantId][type] }
     }))
   }
 
-  const getSpotifyEmbedUrl = (spotifyUrl: string | null, previewUrl: string | null) => {
+  const getSpotifyEmbedUrl = (spotifyUrl: string | null) => {
     if (spotifyUrl) {
       const match = spotifyUrl.match(/track\/([a-zA-Z0-9]+)/)
-      if (match) {
-        return `https://open.spotify.com/embed/track/${match[1]}?utm_source=generator&theme=0`
-      }
+      if (match) return `https://open.spotify.com/embed/track/${match[1]}?utm_source=generator&theme=0`
     }
     return null
   }
 
-  const handlePlayAgain = () => {
-    // Si el juego ya terminó, vamos al inicio
-    if (isGameOver) {
-      resetGame()
-    } else {
-      router.push("/")
-    }
-  }
-
-  const finishActiveGame = async (gameId: string) => {
+  const handlePlayAgain = () => isGameOver ? resetGame() : router.push("/")
+  
+  const finishActiveGame = async (gId: string) => {
     try {
-      const res = await fetch(`/api/proxy/game/${gameId}/finish`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.message || "Error finalizando juego")
-      
+      await fetch(`/api/proxy/game/${gId}/finish`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
       setActiveGameError(null)
-      if (gameMode === 'competitive' || gameMode === 'competitive_turns') {
-        startCompetitiveGame()
-      }
-    } catch (err: any) {
-      setError(err.message || "Error finalizando juego activo")
-    }
+      if (gameMode !== 'casual') startCompetitiveGame()
+    } catch (err: any) { setError(err.message) }
   }
 
   const endCompetitiveSession = async () => {
     if (!gameId) return
     try {
-      const res = await fetch(`/api/proxy/game/${gameId}/finish`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.message || "Error finalizando partida")
-
-      // NO reseteamos todo, activamos la pantalla de Game Over
+      await fetch(`/api/proxy/game/${gameId}/finish`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
       setIsGameOver(true)
-      
-    } catch (err: any) {
-      setError(err.message || "Error finalizando partida")
-    }
+    } catch (err: any) { setError(err.message) }
   }
 
-  // Función para resetear completamente y salir
   const resetGame = () => {
-    setGameMode(null)
-    setGameId(null)
-    setGameParticipants([])
-    setCurrentTurnParticipantId(null)
-    setGameStarted(false)
-    setIsActiveCompetitiveSession(false)
-    setParticipantAnswers({})
-    setScoreResult(null)
-    setShowScoring(false)
-    setAnswered(false)
-    setIsGameOver(false)
-    router.push("/")
+    setGameMode(null); setGameId(null); setGameParticipants([]); setCurrentTurnParticipantId(null); setGameStarted(false); setIsActiveCompetitiveSession(false); setParticipantAnswers({}); setScoreResult(null); setShowScoring(false); setAnswered(false); setIsGameOver(false); router.push("/")
   }
 
-  // Función para compartir resultados
   const handleShare = (platform: 'whatsapp' | 'twitter' | 'copy') => {
     const sorted = [...gameParticipants].sort((a, b) => b.totalPoints - a.totalPoints);
-    
-    let text = `🎵 *Oldly Fun Music Box* - Resultados 🏆\n\n`;
-    text += `Mazo: ${gameCard?.deck?.title || 'Desconocido'}\n`;
-    
-    sorted.forEach((p, index) => {
-      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅';
-      text += `${medal} ${p.name}: ${p.totalPoints} pts\n`;
-    });
-    
-    text += `\n¡Juega ahora en Oldly Fun! 🚀`;
-
-    const encodedText = encodeURIComponent(text);
-
-    if (platform === 'whatsapp') {
-      window.open(`https://wa.me/?text=${encodedText}`, '_blank');
-    } else if (platform === 'twitter') {
-      window.open(`https://twitter.com/intent/tweet?text=${encodedText}`, '_blank');
-    } else if (platform === 'copy') {
-      navigator.clipboard.writeText(text).then(() => {
-        alert("¡Resultados copiados! Puedes pegarlos en Instagram.");
-      });
-    }
+    let text = `🎵 *Oldly Fun Music Box*\n🏆 Resultados del Mazo: ${gameCard?.deck?.title}\n\n`;
+    sorted.forEach((p, i) => text += `${i===0?'🥇':i===1?'🥈':i===2?'🥉':'🏅'} ${p.name}: ${p.totalPoints} pts\n`);
+    const encoded = encodeURIComponent(text)
+    if (platform === 'whatsapp') window.open(`https://wa.me/?text=${encoded}`, '_blank')
+    if (platform === 'twitter') window.open(`https://twitter.com/intent/tweet?text=${encoded}`, '_blank')
+    if (platform === 'copy') { navigator.clipboard.writeText(text); alert("¡Copiado!") }
   }
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">{authLoading ? 'Verificando autenticación...' : 'Cargando juego...'}</p>
-        </div>
-      </div>
-    )
-  }
+  // --- RENDER ---
+  
+  if (authLoading || loading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
-          <div className="text-6xl mb-4">❌</div>
-          <h1 className="text-2xl font-bold mb-4 text-gray-800">Error</h1>
-          <p className="text-red-600 mb-6">{error}</p>
-          <button onClick={() => router.push("/")} className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-semibold">Volver al inicio</button>
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md w-full bg-card border border-border rounded-xl shadow-lg p-6 text-center">
+          <div className="text-5xl mb-4">⚠️</div>
+          <h1 className="text-xl font-bold mb-2 text-foreground">Ups, algo salió mal</h1>
+          <p className="text-muted-foreground mb-6">{error}</p>
+          <Button onClick={() => router.push("/")} className="w-full">Volver al inicio</Button>
         </div>
       </div>
     )
   }
 
-  if (!gameCard) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><p className="text-gray-600">Carta no encontrada</p></div>
+  if (!gameCard) return null
 
-  const embedUrl = getSpotifyEmbedUrl(gameCard.spotifyUrl, gameCard.previewUrl)
+  const embedUrl = getSpotifyEmbedUrl(gameCard.spotifyUrl)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
-      <div className="max-w-6xl mx-auto flex gap-6">
+    <div className="min-h-screen bg-background text-foreground p-4 lg:p-8">
+      <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-6">
         
-        {/* Main Content */}
-        <div className={`${(gameMode === 'competitive' || gameMode === 'competitive_turns') && gameStarted ? 'flex-1' : 'max-w-2xl mx-auto w-full'}`}>
+        {/* COLUMNA PRINCIPAL */}
+        <div className={`transition-all duration-300 ${((gameMode === 'competitive' || gameMode === 'competitive_turns') && gameStarted) ? 'lg:w-3/4' : 'max-w-2xl mx-auto w-full'}`}>
           
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">🎵 Oldly Fun Music Box</h1>
-            <p className="text-blue-200">¡Adivina la canción!</p>
-            {user && <p className="text-green-300 text-sm mt-2">Jugando como: {user.firstname}</p>}
+            <h1 className="text-3xl font-bold tracking-tight mb-2">Oldly Fun Music Box</h1>
+            {user && <p className="text-muted-foreground text-sm">Jugador: <span className="text-foreground font-medium">{user.firstname}</span></p>}
           </div>
 
-        {/* Game Card */}
-        <div className="bg-white rounded-xl shadow-2xl p-6 mb-6">
-          
-          {/* Deck Info */}
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">{gameCard.deck.title}</h2>
-            <div className="flex justify-center items-center gap-4 text-sm text-gray-600">
-              <span className="bg-blue-100 px-3 py-1 rounded-full">Tema: {gameCard.deck.theme}</span>
-              <span className="bg-yellow-100 px-3 py-1 rounded-full">Dificultad: {gameCard.difficulty}</span>
-            </div>
-          </div>
-
-          {/* --- PANTALLA DE GAME OVER --- */}
-          {isGameOver ? (
-            <div className="text-center animate-in fade-in zoom-in duration-300">
-               <div className="text-6xl mb-4">🏆</div>
-               <h3 className="text-3xl font-bold text-gray-800 mb-2">¡Partida Finalizada!</h3>
-               <p className="text-gray-600 mb-6">Aquí están los resultados finales</p>
-
-               <div className="space-y-3 mb-8">
-                 {gameParticipants
-                   .sort((a, b) => b.totalPoints - a.totalPoints)
-                   .map((participant, index) => (
-                     <div key={participant.id} 
-                          className={`flex items-center justify-between p-4 rounded-lg border-2 
-                          ${index === 0 ? 'bg-yellow-50 border-yellow-400' : 'bg-gray-50 border-gray-200'}`}>
-                       <div className="flex items-center gap-3">
-                         <span className="text-2xl">
-                           {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅'}
-                         </span>
-                         <span className="font-bold text-lg text-gray-800">{participant.name}</span>
-                       </div>
-                       <span className="font-bold text-xl text-gray-700">{participant.totalPoints} pts</span>
-                     </div>
-                 ))}
-               </div>
-
-               <div className="mb-8">
-                 <p className="text-sm text-gray-500 mb-3 uppercase font-bold tracking-wide">Compartir Resultados</p>
-                 <div className="flex justify-center gap-3">
-                    <button onClick={() => handleShare('whatsapp')} className="flex items-center gap-2 bg-[#25D366] text-white px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity">
-                      <Share2 className="w-4 h-4" /> WhatsApp
-                    </button>
-                    <button onClick={() => handleShare('twitter')} className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg font-semibold hover:opacity-80 transition-opacity">
-                      <Twitter className="w-4 h-4" /> X / Twitter
-                    </button>
-                    <button onClick={() => handleShare('copy')} className="flex items-center gap-2 bg-pink-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-pink-700 transition-opacity">
-                      <Copy className="w-4 h-4" /> Copiar (Instagram)
-                    </button>
-                 </div>
-               </div>
-
-               <button onClick={resetGame} className="w-full bg-blue-600 text-white py-3 rounded-lg text-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                  <Home className="w-5 h-5" /> Volver al Inicio
-               </button>
-            </div>
-          ) : (
-            /* --- RESTO DE LA LÓGICA DEL JUEGO (Mismo código de antes) --- */
-            <>
-            {/* PANTALLA DE SESIÓN ACTIVA */}
-            {isActiveCompetitiveSession && !gameStarted ? (
-                /* ... (mismo código sesión activa) ... */
-                <div className="text-center mb-6">
-                    {/* ... */}
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-6 max-w-md mx-auto">
-                        <div className="text-4xl mb-4">🏆</div>
-                        <h3 className="text-xl font-semibold mb-3 text-green-800">
-                        Sesión {gameMode === 'competitive_turns' ? 'Por Turnos' : 'Competitiva'} Activa
-                        </h3>
-                        <p className="text-green-700 mb-2 text-sm"><strong>Deck:</strong> {gameCard?.deck?.title}</p>
-                        <p className="text-green-700 mb-4 text-sm">Partida en curso con {gameParticipants.length} jugadores</p>
-                        
-                        {gameMode === 'competitive_turns' && currentTurnParticipantId && (
-                        <div className="bg-yellow-100 p-2 rounded mb-3 border border-yellow-200">
-                            <p className="text-yellow-800 font-bold text-sm">
-                            Turno actual: {gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}
-                            </p>
-                        </div>
-                        )}
-
-                        <div className="grid gap-3">
-                        <button onClick={() => setGameStarted(true)} className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors">▶️ Continuar jugando</button>
-                        <button onClick={endCompetitiveSession} className="bg-red-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-600 transition-colors">🏁 Finalizar partida completa</button>
-                        </div>
-                    </div>
-                </div>
-            ) : isActiveCasualSession && !gameStarted ? (
-                /* ... (mismo código casual activa) ... */
-                <div className="text-center mb-6">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-md mx-auto">
-                        <div className="text-4xl mb-4">🎧</div>
-                        <h3 className="text-xl font-semibold mb-3 text-blue-800">Sesión Casual Activa</h3>
-                        <p className="text-blue-700 mb-4 text-sm">Explorando música sin competir por puntos</p>
-                        <div className="grid gap-3">
-                        <button onClick={() => setGameStarted(true)} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">▶️ Continuar en modo casual</button>
-                        <button onClick={endCasualSession} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors">🏁 Terminar sesión casual</button>
-                        </div>
-                    </div>
-                </div>
-            ) : !gameMode ? (
-                /* ... (mismo código selección modo) ... */
-                <div className="text-center">
-                <div className="text-6xl mb-4">🎯</div>
-                <h3 className="text-2xl font-semibold mb-6">¿Cómo quieres jugar?</h3>
-                
-                <div className="grid gap-4 max-w-md mx-auto">
-                    <button onClick={() => handleModeSelection('casual')} className="bg-blue-500 text-white p-6 rounded-xl text-left hover:bg-blue-600 transition-colors shadow-lg">
-                    <div className="flex items-center mb-2"><span className="text-3xl mr-3">🎧</span><h4 className="text-xl font-bold">Modo Casual</h4></div>
-                    <p className="text-blue-100 text-sm">Solo escucha y ve las respuestas. Sin puntaje.</p>
-                    </button>
-                    
-                    <button onClick={() => handleModeSelection('competitive')} className="bg-green-600 text-white p-6 rounded-xl text-left hover:bg-green-700 transition-colors shadow-lg">
-                    <div className="flex items-center mb-2"><span className="text-3xl mr-3">🏆</span><h4 className="text-xl font-bold">Todos vs Todos</h4></div>
-                    <p className="text-green-100 text-sm">Todos adivinan la misma canción y suman puntos.</p>
-                    </button>
-
-                    <button onClick={() => handleModeSelection('competitive_turns')} className="bg-purple-600 text-white p-6 rounded-xl text-left hover:bg-purple-700 transition-colors shadow-lg">
-                    <div className="flex items-center mb-2"><span className="text-3xl mr-3">📱</span><h4 className="text-xl font-bold">Pasar el Celular</h4></div>
-                    <p className="text-purple-100 text-sm">Juegan uno por uno. Ideal para un solo dispositivo.</p>
-                    </button>
-                </div>
-                </div>
-            ) : (gameMode === 'competitive' || gameMode === 'competitive_turns') && !gameStarted ? (
-                /* ... (mismo código form jugadores) ... */
-                <div className="text-center">
-                {activeGameError ? (
-                    <div className="max-w-md mx-auto">
-                    <div className="text-6xl mb-4">⚠️</div>
-                    <h3 className="text-2xl font-semibold mb-4 text-red-600">Juego Activo Detectado</h3>
-                    <p className="text-red-800 mb-4">{activeGameError.message}</p>
-                    <div className="grid gap-3 mb-4">
-                        <button onClick={() => finishActiveGame(activeGameError.gameId)} className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors">🏁 Finalizar juego actual y empezar nuevo</button>
-                        <button onClick={() => { setActiveGameError(null); setGameMode(null) }} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors">⬅️ Cancelar y volver</button>
-                    </div>
-                    </div>
-                ) : (
-                    <>
-                    <div className="text-6xl mb-4">👥</div>
-                    <h3 className="text-2xl font-semibold mb-6">
-                        {gameMode === 'competitive_turns' ? 'Jugadores (en orden de turno)' : 'Agregar Jugadores'}
-                    </h3>
-                
-                    <div className="max-w-md mx-auto space-y-3 mb-6">
-                        {players.map((player, index) => (
-                        <div key={index} className="flex gap-2">
-                            <input type="text" value={player} onChange={(e) => updatePlayer(index, e.target.value)} placeholder={`Jugador ${index + 1}`} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" maxLength={80} />
-                            {players.length > 1 && (
-                            <button onClick={() => removePlayer(index)} className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">❌</button>
-                            )}
-                        </div>
-                        ))}
-                    </div>
-                    
-                    {formError && (
-                        <div className="max-w-md mx-auto mb-6 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg animate-in slide-in-from-top-2">
-                        {formError}
-                        </div>
-                    )}
-
-                    <div className="flex gap-2 justify-center mb-6">
-                        {players.length < 8 && (
-                        <button onClick={addPlayer} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">➕ Agregar Jugador</button>
-                        )}
-                        <button onClick={() => setGameMode(null)} className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">⬅️ Volver</button>
-                    </div>
-                    
-                    <button onClick={handleStartGame} disabled={players.filter(p => p.trim().length > 0).length === 0} className="bg-green-500 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">🚀 Empezar Juego</button>
-                    </>
-                )}
-                </div>
-            ) : !gameStarted ? (
-                /* ... (mismo código pre-game casual) ... */
-                <div className="text-center">
-                <div className="text-6xl mb-4">🎧</div>
-                <h3 className="text-xl font-semibold mb-4">¿Listo para el desafío?</h3>
-                <p className="text-gray-600 mb-6">{gameCard.hint}</p>
-                <button onClick={handleStartGame} className="bg-green-500 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-green-600 transition-colors">▶️ Empezar Juego</button>
-                </div>
-            ) : !answered ? (
-                /* ... (mismo código playing) ... */
-                <div className="text-center">
-                {cardAlreadyPlayedByCurrent ? (
-                    <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-8 shadow-lg animate-in fade-in zoom-in duration-300">
-                    <div className="text-5xl mb-4">🚫</div>
-                    <h3 className="text-xl font-bold text-yellow-800 mb-2">¡Ya jugaste esta carta!</h3>
-                    <p className="text-yellow-700 mb-6">
-                        <strong>{gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}</strong>, ya adivinaste esta canción anteriormente.
-                    </p>
-                    <p className="text-sm text-gray-600 mb-4">
-                        Escanea una carta nueva o pásale el turno al siguiente jugador.
-                    </p>
-                    </div>
-                ) : (
-                    <>
-                    {gameMode === 'competitive_turns' && currentTurnParticipantId && (
-                        <div className="mb-6 bg-purple-100 border-2 border-purple-300 rounded-xl p-4 animate-pulse">
-                        <p className="text-sm text-purple-800 font-bold uppercase tracking-wider mb-1">Turno de</p>
-                        <h3 className="text-3xl font-extrabold text-purple-900">
-                            {gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}
-                        </h3>
-                        </div>
-                    )}
-
-                    <h3 className="text-xl font-semibold mb-6">🎵 ¡Escucha y adivina!</h3>
-
-                    <div className="relative w-full max-w-md mx-auto mb-4">
-                        {embedUrl ? (
-                        <div className="relative w-full">
-                            <iframe src={embedUrl} width="100%" height="152" style={{ borderRadius: "12px" }} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" className="rounded-lg shadow-md"></iframe>
-                            <button onClick={handleRevealAnswer} disabled={revealing} className="absolute top-0 left-0 w-full h-full bg-teal-600 text-white rounded-lg text-lg font-bold hover:bg-teal-700 transition-colors shadow-xl flex items-center justify-center" style={{ zIndex: 10, clipPath: "polygon(0 0, 85% 0, 85% 30%, 100% 30%, 100% 70%, 85% 70%, 85% 100%, 0 100%)" }}>
-                            {revealing ? "Revelando..." : "🔍 Revelar Respuesta"}
-                            </button>
-                        </div>
-                        ) : gameCard.previewUrl ? (
-                        <div className="w-full flex justify-center">
-                            <audio controls className="w-full"><source src={gameCard.previewUrl} type="audio/mpeg" />Tu navegador no soporta el elemento de audio.</audio>
-                        </div>
-                        ) : (
-                        <div className="w-full p-4 bg-yellow-100 rounded-lg"><p className="text-yellow-800">⚠️ Audio no disponible para esta carta</p></div>
-                        )}
-                    </div>
-                    </>
-                )}
-                </div>
-            ) : (
-                /* ... (mismo código revealed & scoring) ... */
-                <div className="text-center">
-                <div className="text-6xl mb-4">🎉</div>
-                <h3 className="text-2xl font-bold text-green-600 mb-6">¡Respuesta revelada!</h3>
-
-                {revealedCard && (
-                    <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                    <div className="grid md:grid-cols-2 gap-6">
-                        {revealedCard.album?.coverUrl && (
-                        <div className="flex justify-center"><img src={revealedCard.album.coverUrl || "/placeholder.svg"} alt={revealedCard.album.title} className="w-48 h-48 object-cover rounded-lg shadow-lg" /></div>
-                        )}
-                        <div className="text-left space-y-3">
-                        <div><h4 className="font-semibold text-gray-700">Canción:</h4><p className="text-xl font-bold text-gray-900">{revealedCard.songName}</p></div>
-                        <div><h4 className="font-semibold text-gray-700">Artista:</h4><p className="text-lg text-gray-900">{revealedCard.artist.name}</p></div>
-                        
-                        {revealedCard.spotifyUrl && (
-                            <div className="mt-4">
-                            <a href={revealedCard.spotifyUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 bg-[#1DB954] text-black px-4 py-2 rounded-lg font-semibold hover:bg-[#1ed760] transition-transform hover:scale-105 shadow-md text-sm">
-                                <span className="text-lg">🎵</span> Escuchar completa en Spotify
-                                <ExternalLink className="w-4 h-4" />
-                            </a>
-                            </div>
-                        )}
-
-                        </div>
-                    </div>
-                    </div>
-                )}
-
-                {/* SCORING UI */}
-                {(gameMode === 'competitive' || gameMode === 'competitive_turns') && showScoring && (
-                    <div className="mt-6 p-6 bg-blue-50 rounded-lg border-2 border-blue-200">
-                    <h4 className="text-xl font-bold text-blue-800 mb-4 flex items-center justify-center">
-                        <span className="mr-2">🎯</span>
-                        {gameMode === 'competitive_turns' 
-                        ? `¿Qué adivinó ${gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}?`
-                        : '¿Qué adivinó cada jugador?'}
-                    </h4>
-                    
-                    <div className="space-y-6 text-left">
-                        {gameParticipants
-                        .filter(p => gameMode !== 'competitive_turns' || p.id == currentTurnParticipantId)
-                        .map((participant) => (
-                        <div key={participant.id} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
-                            <h5 className="text-lg font-bold text-gray-800 mb-3 flex items-center">
-                            <span className="mr-2">👤</span>
-                            {participant.name}
-                            </h5>
-                            
-                            <div className="space-y-3">
-                            <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
-                                <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.songKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'songKnew')} />
-                                <div className="flex items-center"><span className="text-2xl mr-2">🎵</span><div><div className="font-semibold text-gray-800">{gameCard?.deck?.labelSong || "Canción"}</div><div className="text-sm text-gray-600">"{revealedCard?.songName}"</div></div></div>
-                            </label>
-                            <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
-                                <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.artistKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'artistKnew')} />
-                                <div className="flex items-center"><span className="text-2xl mr-2">🎤</span><div><div className="font-semibold text-gray-800">{gameCard?.deck?.labelArtist || "Artista"}</div><div className="text-sm text-gray-600">"{revealedCard?.artist.name}"</div></div></div>
-                            </label>
-                            {revealedCard?.album && (
-                                <label className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
-                                <input type="checkbox" className="mr-3 w-5 h-5 text-green-600 rounded focus:ring-green-500" checked={participantAnswers[participant.id]?.albumKnew || false} onChange={() => handleParticipantCheckboxChange(participant.id, 'albumKnew')} />
-                                <div className="flex items-center"><span className="text-2xl mr-2">💿</span><div><div className="font-semibold text-gray-800">{gameCard?.deck?.labelAlbum || "Álbum"}</div><div className="text-sm text-gray-600">"{revealedCard?.album.title}"</div></div></div>
-                                </label>
-                            )}
-                            </div>
-                        </div>
-                        ))}
-                    </div>
-                    
-                    <button onClick={handleSubmitScore} disabled={scoring} className="w-full bg-green-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6">
-                        {scoring ? "Calculando..." : "✅ Confirmar Puntos"}
-                    </button>
-                    </div>
-                )}
-
-                {/* RESULTADO DE PUNTUACIÓN */}
-                {(gameMode === 'competitive' || gameMode === 'competitive_turns') && scoreResult && (
-                    <div className="mt-6 p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
-                    {gameMode === 'competitive_turns' && scoreResult.game?.nextTurn && (
-                        <div className="mb-6 bg-yellow-100 border-l-4 border-yellow-500 p-4 text-left">
-                        <p className="text-sm font-bold text-yellow-700 uppercase">Siguiente jugador</p>
-                        <p className="text-2xl font-extrabold text-yellow-900">👉 {scoreResult.game.nextTurn.participantName}</p>
-                        </div>
-                    )}
-                    <h4 className="text-2xl font-bold text-green-800 mb-6 flex items-center"><span className="mr-2">🏆</span>Resultados</h4>
-                    {(scoreResult.round?.participantResults || [scoreResult.round]).map((result: any) => {
-                        const pName = result.participantName || gameParticipants.find(p => p.id == result.participantId)?.name;
-                        return (
-                        <div key={result.participantId} className="mb-4 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
-                            <h5 className="text-lg font-bold text-gray-800 mb-2 flex justify-between">
-                            <span>👤 {pName}</span>
-                            <span className="text-green-600">+{result.pointsEarned ?? result.points ?? 0} pts</span>
-                            </h5>
-                            <div className="text-sm text-gray-600 flex justify-between px-4">
-                            <span>🎵 {result.answers?.songKnew || result.userKnew?.songKnew ? '✅' : '❌'}</span>
-                            <span>🎤 {result.answers?.artistKnew || result.userKnew?.artistKnew ? '✅' : '❌'}</span>
-                            <span>💿 {result.answers?.albumKnew || result.userKnew?.albumKnew ? '✅' : '❌'}</span>
-                            </div>
-                        </div>
-                        )
-                    })}
-                    </div>
-                )}
-
-                {/* MENSAJE MODO CASUAL */}
-                {gameMode === 'casual' && (
-                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200 text-center">
-                    <h4 className="text-lg font-semibold text-blue-800 mb-2">🎧 Modo Casual</h4>
-                    <p className="text-blue-700 mb-4">¡Solo disfruta la música! No se calculan puntos en este modo.</p>
-                    <button onClick={endCasualSession} className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors w-full">🏁 Terminar sesión casual</button>
-                    </div>
-                )}
-
-                <button onClick={handlePlayAgain} className="bg-purple-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors mt-6">🏠 Volver al inicio</button>
-                </div>
-            )
-            }
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="text-center text-blue-200 text-sm">
-          {isActiveCompetitiveSession && gameStarted && (
-            <div className="mt-4">
-              <button onClick={endCompetitiveSession} className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors">🏁 Finalizar partida competitiva</button>
-            </div>
-          )}
-          {isActiveCasualSession && gameStarted && gameMode === 'casual' && (
-            <div className="mt-4 md:hidden">
-               <button onClick={endCasualSession} className="bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-600 transition-colors">🏁 Terminar sesión casual</button>
-            </div>
-          )}
-        </div>
-        </div>
-
-        {/* SIDEBAR COMPETITIVO ANIMADO */}
-        {(gameMode === 'competitive' || gameMode === 'competitive_turns') && gameStarted && gameParticipants.length > 0 && (
-          <div className="w-80 bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 h-fit sticky top-4 hidden lg:block">
-            <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold text-white mb-2">🏆 Marcador</h3>
-              <p className="text-blue-200 text-sm">{gameCard?.deck?.title}</p>
-            </div>
-            <div className="space-y-3 relative">
-              <AnimatePresence mode="popLayout">
-                {gameParticipants
-                  .sort((a, b) => b.totalPoints - a.totalPoints)
-                  .map((participant, index) => (
-                    <motion.div 
-                      layout
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ 
-                        opacity: 1, 
-                        y: 0,
-                        scale: gameMode === 'competitive_turns' && participant.id == currentTurnParticipantId ? 1.03 : 1,
-                      }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                      key={participant.id} 
-                      className={`
-                        rounded-lg p-4 border
-                        ${gameMode === 'competitive_turns' && participant.id == currentTurnParticipantId 
-                          ? 'bg-white/30 border-yellow-400 ring-2 ring-yellow-400 z-10' 
-                          : 'bg-white/20 border-white/30'}
-                      `}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <span className="text-2xl">
-                            {gameMode === 'competitive_turns' && participant.id == currentTurnParticipantId 
-                              ? '👉' 
-                              : (index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅')}
-                          </span>
-                          <div>
-                            <p className={`font-semibold ${participant.id == currentTurnParticipantId ? 'text-yellow-300' : 'text-white'}`}>
-                              {participant.name}
-                            </p>
-                            <p className="text-xs text-blue-200">{participant.totalRounds} rondas</p>
-                          </div>
-                        </div>
-                        <div className="text-right"><p className="text-2xl font-bold text-white">{participant.totalPoints}</p></div>
-                      </div>
-                    </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          </div>
-        )}
-
-        {/* SIDEBAR CASUAL */}
-        {gameMode === 'casual' && gameStarted && isActiveCasualSession && (
-          <div className="w-80 bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 h-fit sticky top-4 hidden lg:block">
-            <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold text-white mb-2">🎧 Modo Casual</h3>
-              <p className="text-blue-200 text-sm">{gameCard?.deck?.title}</p>
-            </div>
-            <div className="bg-white/20 rounded-lg p-4 border border-white/30 mb-6">
-              <div className="text-center">
-                <div className="text-4xl mb-3">🎵</div>
-                <h4 className="font-semibold text-white mb-2">Sesión Activa</h4>
-                <p className="text-blue-200 text-sm">Explorando música sin competir por puntos</p>
+          <div className="bg-card border border-border rounded-xl shadow-sm p-6 lg:p-8">
+            
+            {/* Deck Badge */}
+            <div className="flex flex-col items-center mb-8">
+              <span className="bg-secondary text-secondary-foreground px-4 py-1.5 rounded-full text-sm font-semibold border border-border">
+                {gameCard.deck.title}
+              </span>
+              <div className="flex gap-2 mt-2 text-xs text-muted-foreground">
+                 <span>{gameCard.deck.theme}</span>
+                 <span>•</span>
+                 <span className="capitalize">{gameCard.difficulty}</span>
               </div>
             </div>
-            <div className="mt-6 pt-4 border-t border-white/20">
-               <button onClick={endCasualSession} className="w-full bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-600 transition-colors">🏁 Terminar sesión casual</button>
-            </div>
+
+            {/* --- PANTALLA GAME OVER --- */}
+            {isGameOver ? (
+               <div className="text-center animate-in fade-in zoom-in">
+                  <Trophy className="w-20 h-20 text-yellow-500 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold mb-6">Resultados Finales</h2>
+                  <div className="space-y-3 mb-8">
+                    {gameParticipants.sort((a,b) => b.totalPoints - a.totalPoints).map((p, i) => (
+                       <div key={p.id} className={`flex items-center justify-between p-4 rounded-lg border ${i===0 ? 'bg-secondary/50 border-primary' : 'bg-background border-border'}`}>
+                          <div className="flex items-center gap-3">
+                             <span className="text-xl">{i===0?'🥇':i===1?'🥈':i===2?'🥉':'🏅'}</span>
+                             <span className="font-medium">{p.name}</span>
+                          </div>
+                          <span className="font-bold">{p.totalPoints} pts</span>
+                       </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                     <Button variant="outline" onClick={() => handleShare('whatsapp')} className="w-full">WhatsApp</Button>
+                     <Button variant="outline" onClick={() => handleShare('twitter')} className="w-full">X / Twitter</Button>
+                     <Button variant="outline" onClick={() => handleShare('copy')} className="w-full">Copiar</Button>
+                  </div>
+                  <Button onClick={resetGame} size="lg" className="w-full">Volver al Inicio</Button>
+               </div>
+            ) : (
+            <>
+            {/* --- SELECCION DE MODO --- */}
+            {!gameMode && !isActiveCasualSession && !isActiveCompetitiveSession && (
+               <div className="space-y-4">
+                  <h3 className="text-xl font-semibold text-center mb-6">Selecciona el modo de juego</h3>
+                  <div onClick={() => handleModeSelection('casual')} className="p-4 rounded-lg border border-border bg-background hover:border-primary cursor-pointer transition-all flex gap-4 items-center group">
+                     <div className="bg-secondary p-3 rounded-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"><Music2 className="w-6 h-6" /></div>
+                     <div><h4 className="font-bold">Modo Casual</h4><p className="text-sm text-muted-foreground">Sin puntos, solo adivina y disfruta.</p></div>
+                  </div>
+                  <div onClick={() => handleModeSelection('competitive')} className="p-4 rounded-lg border border-border bg-background hover:border-primary cursor-pointer transition-all flex gap-4 items-center group">
+                     <div className="bg-secondary p-3 rounded-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"><Users className="w-6 h-6" /></div>
+                     <div><h4 className="font-bold">Todos vs Todos</h4><p className="text-sm text-muted-foreground">Compite por puntos en grupo.</p></div>
+                  </div>
+                  <div onClick={() => handleModeSelection('competitive_turns')} className="p-4 rounded-lg border border-border bg-background hover:border-primary cursor-pointer transition-all flex gap-4 items-center group">
+                     <div className="bg-secondary p-3 rounded-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"><Smartphone className="w-6 h-6" /></div>
+                     <div><h4 className="font-bold">Pasar el Celular</h4><p className="text-sm text-muted-foreground">Turnos individuales en un dispositivo.</p></div>
+                  </div>
+               </div>
+            )}
+
+            {/* --- CONFIGURACION JUGADORES --- */}
+            {(gameMode === 'competitive' || gameMode === 'competitive_turns') && !gameStarted && !isActiveCompetitiveSession && (
+               <div className="space-y-6">
+                 <div className="text-center">
+                    <h3 className="text-xl font-bold mb-2">Jugadores</h3>
+                    <p className="text-sm text-muted-foreground">Agrega a los participantes</p>
+                 </div>
+                 
+                 {activeGameError ? (
+                    <div className="bg-destructive/10 p-4 rounded-lg text-center">
+                       <p className="text-destructive mb-4">{activeGameError.message}</p>
+                       <div className="flex gap-2 justify-center">
+                          <Button variant="destructive" onClick={() => finishActiveGame(activeGameError.gameId)}>Reiniciar</Button>
+                          <Button variant="outline" onClick={() => {setActiveGameError(null); setGameMode(null)}}>Cancelar</Button>
+                       </div>
+                    </div>
+                 ) : (
+                    <div className="space-y-3">
+                       {players.map((p, i) => (
+                          <div key={i} className="flex gap-2">
+                             <Input placeholder={`Nombre Jugador ${i+1}`} value={p} onChange={(e) => updatePlayer(i, e.target.value)} className="bg-secondary" />
+                             {players.length > 1 && <Button variant="destructive" size="icon" onClick={() => removePlayer(i)}>✕</Button>}
+                          </div>
+                       ))}
+                       {players.length < 8 && <Button variant="outline" onClick={addPlayer} className="w-full border-dashed">+ Agregar Jugador</Button>}
+                       
+                       {formError && <p className="text-destructive text-sm text-center">{formError}</p>}
+                       
+                       <div className="pt-4 flex gap-3">
+                          <Button variant="ghost" onClick={() => setGameMode(null)}>Atrás</Button>
+                          <Button className="flex-1" onClick={handleStartGame}>Comenzar Partida</Button>
+                       </div>
+                    </div>
+                 )}
+               </div>
+            )}
+
+            {/* --- SESIONES ACTIVAS (Resumir) --- */}
+            {(isActiveCasualSession || isActiveCompetitiveSession) && !gameStarted && (
+               <div className="text-center py-8">
+                  <h3 className="text-xl font-bold mb-4">¡Partida en curso detectada!</h3>
+                  <div className="flex gap-3 justify-center">
+                     <Button onClick={() => setGameStarted(true)}>Continuar Jugando</Button>
+                     <Button variant="secondary" onClick={isActiveCasualSession ? endCasualSession : endCompetitiveSession}>Finalizar</Button>
+                  </div>
+               </div>
+            )}
+
+            {/* --- AREA DE JUEGO --- */}
+            {gameStarted && !answered && (
+               <div className="text-center space-y-6">
+                  {cardAlreadyPlayedByCurrent ? (
+                     <div className="bg-secondary/50 p-6 rounded-lg border border-yellow-500/50">
+                        <p className="text-yellow-600 font-bold mb-2">¡Ya jugaste esta carta!</p>
+                        <p className="text-sm text-muted-foreground">Pasa el turno o escanea otra.</p>
+                     </div>
+                  ) : (
+                     <>
+                        {currentTurnParticipantId && (
+                           <div className="bg-secondary/50 py-2 px-4 rounded-full inline-block mb-4">
+                              <span className="text-sm text-muted-foreground mr-2">Turno de:</span>
+                              <span className="font-bold text-primary">{gameParticipants.find(p => p.id == currentTurnParticipantId)?.name}</span>
+                           </div>
+                        )}
+
+                        <div className="relative w-full max-w-md mx-auto mb-4">
+                           {embedUrl ? (
+                             <div className="relative w-full">
+                               <iframe 
+                                 src={embedUrl} 
+                                 width="100%" 
+                                 height="152" 
+                                 style={{ borderRadius: "12px" }} 
+                                 frameBorder="0" 
+                                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                                 loading="lazy" 
+                                 className="rounded-lg shadow-md bg-black" 
+                               />
+                               
+                               <button 
+                                 onClick={handleRevealAnswer} 
+                                 disabled={revealing} 
+                                 className="absolute top-0 left-0 w-full h-full bg-[#2a2a2a] text-white rounded-lg text-lg font-bold hover:bg-[#3a3a3a] transition-colors shadow-xl flex items-center justify-center z-10"
+                                 style={{ 
+                                   clipPath: "polygon(0 0, 85% 0, 85% 30%, 100% 30%, 100% 70%, 85% 70%, 85% 100%, 0 100%)" 
+                                 }}
+                               >
+                                 {revealing ? "Revelando..." : "🔍 Revelar Respuesta"}
+                               </button>
+                             </div>
+                           ) : gameCard.previewUrl ? (
+                               <div className="flex flex-col items-center justify-center bg-secondary p-6 rounded-lg">
+                                  <audio controls className="mb-6 w-full"><source src={gameCard.previewUrl} /></audio>
+                                  <Button onClick={handleRevealAnswer}>Revelar Respuesta</Button>
+                               </div>
+                           ) : (
+                              <div className="h-40 flex items-center justify-center bg-secondary text-muted-foreground rounded-lg">
+                                 Sin Audio
+                              </div>
+                           )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-4 italic">{gameCard.hint}</p>
+                     </>
+                  )}
+               </div>
+            )}
+
+            {/* --- RESULTADO Y PUNTUACION --- */}
+            {answered && revealedCard && (
+               <div className="animate-in slide-in-from-bottom-4 fade-in duration-500">
+                  <div className="flex flex-col md:flex-row gap-6 items-center bg-secondary/30 p-6 rounded-xl border border-border mb-8">
+                     {revealedCard.album?.coverUrl && (
+                        <img src={revealedCard.album.coverUrl} alt="Album" className="w-32 h-32 rounded-lg shadow-md object-cover" />
+                     )}
+                     <div className="text-center md:text-left space-y-1">
+                        <h2 className="text-2xl font-bold text-primary">{revealedCard.songName}</h2>
+                        <p className="text-lg font-medium text-foreground">{revealedCard.artist.name}</p>
+                        <p className="text-sm text-muted-foreground">{revealedCard.album?.title}</p>
+                     </div>
+                  </div>
+
+                  {/* FORMULARIO DE PUNTOS */}
+                  {(gameMode === 'competitive' || gameMode === 'competitive_turns') && showScoring && (
+                     <div className="space-y-4">
+                        <h4 className="font-semibold text-center border-b border-border pb-2 mb-4">Asignar Puntos</h4>
+                        {gameParticipants.filter(p => gameMode !== 'competitive_turns' || p.id == currentTurnParticipantId).map(p => (
+                           <div key={p.id} className="p-4 rounded-lg border border-border bg-background">
+                              <p className="font-bold mb-3">{p.name}</p>
+                              <div className="space-y-2">
+                                 <div className="flex items-center space-x-2">
+                                    <Checkbox id={`song-${p.id}`} checked={participantAnswers[p.id]?.songKnew} onCheckedChange={() => handleParticipantCheckboxChange(p.id, 'songKnew')} />
+                                    <label htmlFor={`song-${p.id}`} className="text-sm cursor-pointer">Canción ({gameCard.deck.labelSong || "Nombre"})</label>
+                                 </div>
+                                 <div className="flex items-center space-x-2">
+                                    <Checkbox id={`artist-${p.id}`} checked={participantAnswers[p.id]?.artistKnew} onCheckedChange={() => handleParticipantCheckboxChange(p.id, 'artistKnew')} />
+                                    <label htmlFor={`artist-${p.id}`} className="text-sm cursor-pointer">Artista ({gameCard.deck.labelArtist || "Nombre"})</label>
+                                 </div>
+                                 {revealedCard.album && (
+                                     <div className="flex items-center space-x-2">
+                                        <Checkbox id={`album-${p.id}`} checked={participantAnswers[p.id]?.albumKnew} onCheckedChange={() => handleParticipantCheckboxChange(p.id, 'albumKnew')} />
+                                        <label htmlFor={`album-${p.id}`} className="text-sm cursor-pointer">Álbum ({gameCard.deck.labelAlbum || "Nombre"})</label>
+                                     </div>
+                                 )}
+                              </div>
+                           </div>
+                        ))}
+                        <Button className="w-full mt-4" onClick={handleSubmitScore} disabled={scoring}>
+                           {scoring ? "Guardando..." : "Confirmar Puntos"}
+                        </Button>
+                     </div>
+                  )}
+
+                  {/* RESUMEN RONDA */}
+                  {scoreResult && (
+                     <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-lg text-center mb-6">
+                        <div className="flex justify-center mb-2"><CheckCircle2 className="w-8 h-8 text-emerald-500" /></div>
+                        <h4 className="font-bold text-emerald-600 mb-2">Puntos Asignados</h4>
+                        {scoreResult.game?.nextTurn && (
+                           <p className="text-sm font-medium mt-2 pt-2 border-t border-emerald-500/20">
+                              Siguiente turno: <span className="font-bold">{scoreResult.game.nextTurn.participantName}</span>
+                           </p>
+                        )}
+                     </div>
+                  )}
+
+                  {(!showScoring || scoreResult) && (
+                     <Button variant="secondary" className="w-full mt-4" onClick={handlePlayAgain}>
+                        {gameMode === 'casual' ? "Siguiente Carta" : "Volver al Inicio"}
+                     </Button>
+                  )}
+               </div>
+            )}
+            
+            {/* --- BOTÓN DE SALIDA (NUEVO) --- */}
+            {gameStarted && !isGameOver && (
+               <div className="mt-8 pt-6 border-t border-border flex justify-center">
+                  <Button 
+                     variant="ghost" 
+                     className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                     onClick={gameMode === 'casual' ? endCasualSession : endCompetitiveSession}
+                  >
+                     <LogOut className="w-4 h-4 mr-2" />
+                     {gameMode === 'casual' ? "Terminar Modo Casual" : "Abandonar Partida"}
+                  </Button>
+               </div>
+            )}
+            </>
+            )}
           </div>
+        </div>
+
+        {/* --- SIDEBAR LATERAL (Desktop) --- */}
+        {(gameMode === 'competitive' || gameMode === 'competitive_turns') && gameStarted && gameParticipants.length > 0 && !isGameOver && (
+           <div className="hidden lg:block w-80 sticky top-4 h-fit">
+              <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+                 <h3 className="font-bold mb-4 flex items-center gap-2"><Trophy className="w-4 h-4" /> Tabla de Posiciones</h3>
+                 <div className="space-y-3">
+                    <AnimatePresence>
+                       {gameParticipants.sort((a,b) => b.totalPoints - a.totalPoints).map((p, i) => (
+                          <motion.div 
+                             key={p.id}
+                             layout
+                             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                             className={`flex justify-between items-center p-3 rounded-lg border text-sm ${
+                                p.id == currentTurnParticipantId ? 'bg-primary/5 border-primary ring-1 ring-primary' : 'bg-background border-border'
+                             }`}
+                          >
+                             <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground w-4">{i+1}.</span>
+                                <span className="font-medium truncate max-w-[120px]">{p.name}</span>
+                             </div>
+                             <span className="font-bold">{p.totalPoints}</span>
+                          </motion.div>
+                       ))}
+                    </AnimatePresence>
+                 </div>
+                 <div className="mt-6 pt-4 border-t border-border">
+                    <Button variant="destructive" size="sm" className="w-full" onClick={endCompetitiveSession}>Terminar Partida</Button>
+                 </div>
+              </div>
+           </div>
         )}
+
       </div>
     </div>
   )

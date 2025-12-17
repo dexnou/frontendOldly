@@ -4,88 +4,71 @@ import type React from "react"
 import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import Image from "next/image"
+import Link from "next/link"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001" || "http://localhost:3001"
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
 
-// 1. Movemos toda la lógica a un componente interno
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login } = useAuth()
+  
+  // Estados
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [firstname, setFirstname] = useState("")
   const [lastname, setLastname] = useState("")
   const [whatsapp, setWhatsapp] = useState("")
+  
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
 
-  // Redirección destino (ej: QR)
   const redirectTo = searchParams.get("redirect") || "/"
 
-  // Login manual
+  // Login Handler
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
 
     try {
-      console.log("[v0] Attempting login via proxy")
       const res = await fetch("/api/proxy/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       })
 
-      const text = await res.text()
-      let data
-      try {
-        data = JSON.parse(text)
-      } catch (parseError) {
-        throw new Error("Error del servidor - no se pudo procesar la respuesta")
-      }
+      const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        if (res.status === 401) {
-          throw new Error("Email o contraseña incorrectos")
-        }
-        const errorMessage = data?.message || `Error ${res.status}: No se pudo iniciar sesión`
-        throw new Error(errorMessage)
+        throw new Error(data?.message || "Credenciales incorrectas")
       }
 
-      if (!data?.data?.token || !data?.data?.user) {
-        throw new Error("Error del servidor - respuesta incompleta")
-      }
+      if (!data?.data?.token) throw new Error("Error del servidor")
 
       login(data.data.token, data.data.user)
       router.push(redirectTo)
     } catch (err: any) {
-      console.error("[v0] Error en login:", err)
-      setError(err.message || "Error desconocido durante el inicio de sesión")
+      setError(err.message)
     } finally {
       setLoading(false)
     }
   }
 
-  // Login con Google
+  // Google Login Handler
   const handleGoogleLogin = () => {
     window.location.href = `${BACKEND_URL}/api/auth/google?redirect=${encodeURIComponent(redirectTo)}`
   }
 
-  // Registro manual
+  // Register Handler
   const handleManualRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
-
-    if (!firstname.trim() || !lastname.trim()) {
-      setError("Nombre y apellido son requeridos")
-      setLoading(false)
-      return
-    }
 
     if (password.length < 6) {
       setError("La contraseña debe tener al menos 6 caracteres")
@@ -106,190 +89,169 @@ function LoginContent() {
         }),
       })
 
-      const text = await res.text()
-      let data
-      try {
-        data = JSON.parse(text)
-      } catch (parseError) {
-        throw new Error("Error del servidor - no se pudo procesar la respuesta")
-      }
+      const data = await res.json().catch(() => null)
 
       if (!res.ok) {
         if (data?.errorCode === 'EMAIL_EXISTS') {
-          throw new Error("Este email ya está registrado. ¿Quieres iniciar sesión en su lugar?")
+           setError("Este email ya está registrado.")
+           setLoading(false)
+           return
         }
-        const errorMessage = data?.message || `Error ${res.status}: No se pudo completar el registro`
-        throw new Error(errorMessage)
+        throw new Error(data?.message || "Error al registrarse")
       }
 
-      if (!data?.data?.token || !data?.data?.user) {
-        throw new Error("Error del servidor - respuesta incompleta")
-      }
+      if (!data?.data?.token) throw new Error("Error del servidor")
 
       login(data.data.token, data.data.user)
       router.push(redirectTo)
     } catch (err: any) {
-      console.error("[v0] Error en registro:", err)
-      setError(err.message || "Error desconocido durante el registro")
+      setError(err.message)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
-      <div className="w-full max-w-md p-8 bg-white rounded shadow">
-        <h1 className="text-2xl font-bold mb-6 text-center">{isRegistering ? "Crear cuenta" : "Iniciar sesión"}</h1>
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            <div className="flex items-center">
-              <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <span className="text-sm">{error}</span>
-            </div>
-          </div>
-        )}
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+      {/* Botón volver */}
+      <Link href="/" className="absolute top-8 left-8 text-muted-foreground hover:text-primary transition-colors">
+        ← Volver al inicio
+      </Link>
 
-        {!isRegistering ? (
-          <>
+      <div className="w-full max-w-md">
+        {/* Header con Logo */}
+        <div className="text-center mb-8">
+           <div className="relative w-20 h-20 mx-auto mb-4 rounded-full border-2 border-border overflow-hidden bg-secondary">
+              <Image src="/logo.png" alt="Logo" fill className="object-cover" />
+           </div>
+           <h1 className="text-3xl font-bold tracking-tight text-foreground">
+             {isRegistering ? "Crear Cuenta" : "Bienvenido"}
+           </h1>
+           <p className="text-muted-foreground mt-2">
+             {isRegistering ? "Únete a la comunidad de Oldy Fans" : "Ingresa para acceder a tus decks"}
+           </p>
+        </div>
+
+        {/* Tarjeta de Formulario */}
+        <div className="bg-card border border-border rounded-xl p-8 shadow-2xl shadow-black/20">
+          {error && (
+            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/50 text-red-500 text-sm rounded-lg flex items-center gap-2">
+              ⚠️ {error}
+            </div>
+          )}
+
+          {!isRegistering ? (
+            /* --- LOGIN FORM --- */
             <form onSubmit={handleManualLogin} className="space-y-4">
-              <input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border rounded"
-                required
-              />
-              <input
-                type="password"
-                placeholder="Contraseña"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border rounded"
-                required
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                {loading ? "Ingresando..." : "Ingresar"}
-              </button>
-            </form>
-
-            <div className="my-4 text-center text-gray-500">o</div>
-
-            <button
-              onClick={handleGoogleLogin}
-              className="w-full bg-red-500 text-white py-2 rounded hover:bg-red-600 flex items-center justify-center gap-2"
-            >
-              <svg width="20" height="20" viewBox="0 0 48 48">
-                <g>
-                  <path
-                    fill="#4285F4"
-                    d="M24 9.5c3.54 0 6.73 1.22 9.24 3.22l6.9-6.9C36.53 2.36 30.7 0 24 0 14.64 0 6.27 5.48 1.98 13.44l8.06 6.27C12.6 13.16 17.87 9.5 24 9.5z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M46.1 28.71c-1.13-3.36-1.13-6.96 0-10.32l-7.19-5.59C36.53 37.36 46.1 31.44 46.1 24.5z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M10.04 28.71c-1.13-3.36-1.13-6.96 0-10.32l-8.06-6.27C.36 16.7 0 20.28 0 24c0 3.72.36 7.3 1.98 10.88l8.06-6.27z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M24 48c6.7 0 12.36-2.21 16.48-6.02l-7.19-5.59c-2.01 1.35-4.59 2.16-7.29 2.16-6.13 0-11.4-3.66-13.96-8.97l-8.06 6.27C6.27 42.52 14.64 48 24 48z"
-                  />
-                </g>
-              </svg>
-              Ingresar con Google
-            </button>
-
-            <div className="mt-6 text-center">
-              <p className="text-gray-600">¿No tienes cuenta?</p>
-              <button onClick={() => setIsRegistering(true)} className="text-blue-600 hover:text-blue-700 font-medium">
-                Crear cuenta aquí
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <form onSubmit={handleManualRegister} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <input
-                  type="text"
-                  placeholder="Nombre"
-                  value={firstname}
-                  onChange={(e) => setFirstname(e.target.value)}
-                  className="w-full px-4 py-2 border rounded"
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Apellido"
-                  value={lastname}
-                  onChange={(e) => setLastname(e.target.value)}
-                  className="w-full px-4 py-2 border rounded"
+              <div className="space-y-2">
+                <Input
+                  type="email"
+                  placeholder="tucorreo@ejemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="bg-secondary border-input"
                   required
                 />
               </div>
-              <input
+              <div className="space-y-2">
+                <Input
+                  type="password"
+                  placeholder="Contraseña"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="bg-secondary border-input"
+                  required
+                />
+              </div>
+              
+              <Button type="submit" className="w-full font-semibold" disabled={loading}>
+                {loading ? "Ingresando..." : "Iniciar Sesión"}
+              </Button>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border"></span></div>
+                <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">O continúa con</span></div>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleGoogleLogin}
+                className="w-full bg-white text-black hover:bg-gray-100 border-border"
+              >
+                <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
+                Google
+              </Button>
+            </form>
+          ) : (
+            /* --- REGISTER FORM --- */
+            <form onSubmit={handleManualRegister} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  placeholder="Nombre"
+                  value={firstname}
+                  onChange={(e) => setFirstname(e.target.value)}
+                  className="bg-secondary border-input"
+                  required
+                />
+                <Input
+                  placeholder="Apellido"
+                  value={lastname}
+                  onChange={(e) => setLastname(e.target.value)}
+                  className="bg-secondary border-input"
+                  required
+                />
+              </div>
+              <Input
                 type="email"
                 placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border rounded"
+                className="bg-secondary border-input"
                 required
               />
-              <input
-                type="tel"
-                placeholder="WhatsApp (opcional)"
-                value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
-                className="w-full px-4 py-2 border rounded"
-              />
-              <input
+              <Input
                 type="password"
-                placeholder="Contraseña"
+                placeholder="Contraseña (mín 6 caracteres)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border rounded"
+                className="bg-secondary border-input"
                 required
-                minLength={6}
               />
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50"
-              >
-                {loading ? "Registrando..." : "Crear cuenta"}
-              </button>
+               <Input
+                type="tel"
+                placeholder="WhatsApp (Opcional)"
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value)}
+                className="bg-secondary border-input"
+              />
+              
+              <Button type="submit" className="w-full font-semibold bg-green-600 hover:bg-green-700 text-white" disabled={loading}>
+                {loading ? "Creando cuenta..." : "Registrarse Gratis"}
+              </Button>
             </form>
+          )}
 
-            <div className="mt-6 text-center">
-              <p className="text-gray-600">¿Ya tienes cuenta?</p>
-              <button onClick={() => setIsRegistering(false)} className="text-blue-600 hover:text-blue-700 font-medium">
-                Iniciar sesión aquí
-              </button>
-            </div>
-          </>
-        )}
+          <div className="mt-6 text-center text-sm">
+            <span className="text-muted-foreground">
+              {isRegistering ? "¿Ya tienes cuenta? " : "¿No tienes cuenta? "}
+            </span>
+            <button
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="text-primary hover:underline font-medium"
+            >
+              {isRegistering ? "Inicia sesión" : "Regístrate aquí"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
-// 2. Envolvemos el contenido en Suspense para el build
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    }>
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
       <LoginContent />
     </Suspense>
   )
