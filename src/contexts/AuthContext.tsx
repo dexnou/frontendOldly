@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react"
 
 interface User {
   id: string
@@ -27,8 +27,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001" || "http://localhost:3001"
-
   // Función para obtener token desde localStorage o cookies
   const getStoredToken = (): string | null => {
     if (typeof window === "undefined") return null
@@ -47,7 +45,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null
   }
 
-  const verifyToken = async (authToken: string) => {
+  // Memoizamos esta función para poder usarla en useEffect si fuera necesario
+  const verifyToken = useCallback(async (authToken: string) => {
     try {
       const res = await fetch(`/api/proxy/auth/me`, {
         headers: {
@@ -66,23 +65,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Error verificando token (backend posiblemente no disponible):", error)
       return null
     }
-  }
+  }, [])
 
-  // Login
-  const login = (authToken: string, userData: User) => {
+  // Login: Usamos useCallback para que la referencia a la función no cambie
+  const login = useCallback((authToken: string, userData: User) => {
     setToken(authToken)
     setUser(userData)
     localStorage.setItem("authToken", authToken)
     document.cookie = `authToken=${authToken}; path=/; max-age=${7 * 24 * 60 * 60}`
-  }
+  }, [])
 
-  // Logout
-  const logout = () => {
+  // Logout: Usamos useCallback
+  const logout = useCallback(() => {
     setToken(null)
     setUser(null)
     localStorage.removeItem("authToken")
     document.cookie = "authToken=; path=/; max-age=0"
-  }
+  }, [])
 
   // Verificar autenticación al cargar
   useEffect(() => {
@@ -92,11 +91,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (storedToken) {
         const userData = await verifyToken(storedToken)
         if (userData) {
+          // Actualizamos el estado directamente sin llamar a 'login' aquí 
+          // para evitar dependencias circulares complejas en la inicialización
           setToken(storedToken)
           setUser(userData)
         } else {
           // Token inválido, limpiar
-          logout()
+          localStorage.removeItem("authToken")
+          document.cookie = "authToken=; path=/; max-age=0"
+          setToken(null)
+          setUser(null)
         }
       }
 
@@ -104,19 +108,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     initAuth()
-  }, [])
+  }, [verifyToken]) // verifyToken es estable ahora
+
+  // Memoizamos el valor del contexto para evitar renderizados innecesarios en los consumidores
+  const value = useMemo(() => ({
+    user,
+    isLoggedIn: !!user,
+    token,
+    login,
+    logout,
+    loading,
+  }), [user, token, login, logout, loading])
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoggedIn: !!user,
-        token,
-        login,
-        logout,
-        loading,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )
