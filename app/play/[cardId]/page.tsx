@@ -61,7 +61,7 @@ export default function PlayPage() {
   const [gameStarted, setGameStarted] = useState(false)
   const [isGameOver, setIsGameOver] = useState(false)
   const [answered, setAnswered] = useState(false)
-  
+   
   const [gameMode, setGameMode] = useState<'casual' | 'competitive' | 'competitive_turns' | null>(null)
   const [players, setPlayers] = useState<string[]>([''])
   const [gameId, setGameId] = useState<string | null>(null)
