@@ -1,6 +1,60 @@
-<<<<<<< HEAD
-if(!self.define){let e,c={};const n=(n,i)=>(n=new URL(n+".js",i).href,c[n]||new Promise(c=>{if("document"in self){const e=document.createElement("script");e.src=n,e.onload=c,document.head.appendChild(e)}else e=n,importScripts(n),c()}).then(()=>{let e=c[n];if(!e)throw new Error(`Module ${n} didn’t register its module`);return e}));self.define=(i,o)=>{const s=e||("document"in self?document.currentScript.src:"")||location.href;if(c[s])return;let a={};const r=e=>n(e,s),d={module:{uri:s},exports:a,require:r};c[s]=Promise.all(i.map(e=>d[e]||r(e))).then(e=>(o(...e),a))}}define(["./workbox-ad9264df"],function(e){"use strict";self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"apple-icon.png",revision:"734ce6c878789fcd5843e8a7963e0756"},{url:"file.svg",revision:"5a7cf15203348f0915990406e4fe2fc2"},{url:"globe.svg",revision:"0666a56cc38cb6872fad06c182ef2660"},{url:"icon-dark-32x32.png",revision:"abd5ebe9e287ca0a89f4fd3da2b5cf9c"},{url:"icon-light-32x32.png",revision:"53426c910bcab7d3e5213cc64aa1b2c5"},{url:"icon.svg",revision:"6e5d88c5f7e97d26ac4ad47e703bf9de"},{url:"icons/icon-128x128.png",revision:"ff0fb6b254cfae1096af04f4eb05b87e"},{url:"icons/icon-144x144.png",revision:"395a18f0cf212ac011f211b07a698f24"},{url:"icons/icon-152x152.png",revision:"1bf602495b80e2ae012a2cd0907e1f70"},{url:"icons/icon-192x192.png",revision:"61137d62328cab09ac23a834b65c4c1b"},{url:"icons/icon-384x384.png",revision:"1c991b21b4665bc6e752eac90ed2e0c2"},{url:"icons/icon-512x512.png",revision:"84ea96404fce8b816c25d04dc2061745"},{url:"icons/icon-72x72.png",revision:"1abfc69f9ed5e0099ec6831b3acac293"},{url:"icons/icon-96x96.png",revision:"b4e9a0b17ae4f4f24b816a590d65e7fe"},{url:"logo.png",revision:"044600f409e14230fe55ce4e9609b2a8"},{url:"manifest.json",revision:"755d446e317cfd50cfe240835df913c8"},{url:"next.svg",revision:"2c469ea859f2cba868be3a6bd258a961"},{url:"offline.html",revision:"e15c79f2bda121a344d4b4b1c5cf60ce"},{url:"placeholder-logo.png",revision:"95d8d1a4a9bbcccc875e2c381e74064a"},{url:"placeholder-logo.svg",revision:"1e16dc7df824652c5906a2ab44aef78c"},{url:"placeholder-user.jpg",revision:"7ee6562646feae6d6d77e2c72e204591"},{url:"placeholder.jpg",revision:"1e533b7b4545d1d605144ce893afc601"},{url:"placeholder.svg",revision:"35707bd9960ba5281c72af927b79291f"},{url:"sourcingup-logo.jpg",revision:"94f2079a7686cc5f8c66fcb85dd0ff63"},{url:"vercel.svg",revision:"5570ba747e9dd6fdb68e7e2dd32d1cec"},{url:"window.svg",revision:"f2d60ec0c2c0d62aac6a19dc14ea108d"}],{ignoreURLParametersMatching:[/^utm_/,/^fbclid$/]}),e.registerRoute(new e.NavigationRoute(e.createHandlerBoundToURL("/offline.html"),{denylist:[/^\/api\//,/^\/_next\//,/\.[a-z]+$/]})),e.registerRoute(/^https:\/\/fonts\.googleapis\.com\//,new e.StaleWhileRevalidate({cacheName:"google-fonts-stylesheets",plugins:[]}),"GET"),e.registerRoute(/^https:\/\/fonts\.gstatic\.com\//,new e.CacheFirst({cacheName:"google-fonts-webfonts",plugins:[new e.ExpirationPlugin({maxEntries:30,maxAgeSeconds:31536e3})]}),"GET"),e.registerRoute(/^https?.*\/api\/.*$/,new e.NetworkFirst({cacheName:"api-cache",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:100,maxAgeSeconds:300})]}),"GET"),e.registerRoute(/.*\/api\/proxy\/.*$/,new e.NetworkFirst({cacheName:"proxy-cache",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:50,maxAgeSeconds:300})]}),"GET"),e.registerRoute(/\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,new e.CacheFirst({cacheName:"images-cache",plugins:[new e.ExpirationPlugin({maxEntries:100,maxAgeSeconds:2592e3})]}),"GET"),e.registerRoute(/^https?.*\//,new e.NetworkFirst({cacheName:"pages-cache",networkTimeoutSeconds:3,plugins:[new e.ExpirationPlugin({maxEntries:50,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\/_next\/static\/.*/,new e.StaleWhileRevalidate({cacheName:"next-static-cache",plugins:[new e.ExpirationPlugin({maxEntries:100,maxAgeSeconds:31536e3})]}),"GET"),e.registerRoute(/\.(?:js|css)$/,new e.StaleWhileRevalidate({cacheName:"static-resources",plugins:[new e.ExpirationPlugin({maxEntries:100,maxAgeSeconds:604800})]}),"GET")});
-=======
-if(!self.define){let e,c={};const n=(n,i)=>(n=new URL(n+".js",i).href,c[n]||new Promise(c=>{if("document"in self){const e=document.createElement("script");e.src=n,e.onload=c,document.head.appendChild(e)}else e=n,importScripts(n),c()}).then(()=>{let e=c[n];if(!e)throw new Error(`Module ${n} didn’t register its module`);return e}));self.define=(i,o)=>{const s=e||("document"in self?document.currentScript.src:"")||location.href;if(c[s])return;let a={};const r=e=>n(e,s),f={module:{uri:s},exports:a,require:r};c[s]=Promise.all(i.map(e=>f[e]||r(e))).then(e=>(o(...e),a))}}define(["./workbox-ad9264df"],function(e){"use strict";self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"apple-icon.png",revision:"734ce6c878789fcd5843e8a7963e0756"},{url:"file.svg",revision:"7f5fe2a0a69865856099b41ff935f927"},{url:"globe.svg",revision:"5a299c17f01b393d73168f3f72170075"},{url:"icon-dark-32x32.png",revision:"abd5ebe9e287ca0a89f4fd3da2b5cf9c"},{url:"icon-light-32x32.png",revision:"53426c910bcab7d3e5213cc64aa1b2c5"},{url:"icon.svg",revision:"0285a820d3fb2d06a9fb098ef84c1174"},{url:"icons/icon-128x128.png",revision:"ff0fb6b254cfae1096af04f4eb05b87e"},{url:"icons/icon-144x144.png",revision:"395a18f0cf212ac011f211b07a698f24"},{url:"icons/icon-152x152.png",revision:"1bf602495b80e2ae012a2cd0907e1f70"},{url:"icons/icon-192x192.png",revision:"61137d62328cab09ac23a834b65c4c1b"},{url:"icons/icon-384x384.png",revision:"1c991b21b4665bc6e752eac90ed2e0c2"},{url:"icons/icon-512x512.png",revision:"84ea96404fce8b816c25d04dc2061745"},{url:"icons/icon-72x72.png",revision:"1abfc69f9ed5e0099ec6831b3acac293"},{url:"icons/icon-96x96.png",revision:"b4e9a0b17ae4f4f24b816a590d65e7fe"},{url:"logo.png",revision:"044600f409e14230fe55ce4e9609b2a8"},{url:"manifest.json",revision:"a5a765fd3f0c45934bd31a7ba9779591"},{url:"next.svg",revision:"61d4a9ed607f8eb52d47d1b0caa8d492"},{url:"offline.html",revision:"71deb4a39e62cbb8f96f13f4686c77cf"},{url:"placeholder-logo.png",revision:"95d8d1a4a9bbcccc875e2c381e74064a"},{url:"placeholder-logo.svg",revision:"1e16dc7df824652c5906a2ab44aef78c"},{url:"placeholder-user.jpg",revision:"7ee6562646feae6d6d77e2c72e204591"},{url:"placeholder.jpg",revision:"1e533b7b4545d1d605144ce893afc601"},{url:"placeholder.svg",revision:"35707bd9960ba5281c72af927b79291f"},{url:"sourcingup-logo.jpg",revision:"94f2079a7686cc5f8c66fcb85dd0ff63"},{url:"vercel.svg",revision:"b1810e5957093855d7e4532c09efcc39"},{url:"window.svg",revision:"cf277266add33ba3fbd04e5906665054"}],{ignoreURLParametersMatching:[/^utm_/,/^fbclid$/]}),e.registerRoute(new e.NavigationRoute(e.createHandlerBoundToURL("/offline.html"),{denylist:[/^\/api\//,/^\/_next\//,/\.[a-z]+$/]})),e.registerRoute(/^https:\/\/fonts\.googleapis\.com\//,new e.StaleWhileRevalidate({cacheName:"google-fonts-stylesheets",plugins:[]}),"GET"),e.registerRoute(/^https:\/\/fonts\.gstatic\.com\//,new e.CacheFirst({cacheName:"google-fonts-webfonts",plugins:[new e.ExpirationPlugin({maxEntries:30,maxAgeSeconds:31536e3})]}),"GET"),e.registerRoute(/^https?.*\/api\/.*$/,new e.NetworkFirst({cacheName:"api-cache",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:100,maxAgeSeconds:300})]}),"GET"),e.registerRoute(/.*\/api\/proxy\/.*$/,new e.NetworkFirst({cacheName:"proxy-cache",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:50,maxAgeSeconds:300})]}),"GET"),e.registerRoute(/\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,new e.CacheFirst({cacheName:"images-cache",plugins:[new e.ExpirationPlugin({maxEntries:100,maxAgeSeconds:2592e3})]}),"GET"),e.registerRoute(/^https?.*\//,new e.NetworkFirst({cacheName:"pages-cache",networkTimeoutSeconds:3,plugins:[new e.ExpirationPlugin({maxEntries:50,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\/_next\/static\/.*/,new e.StaleWhileRevalidate({cacheName:"next-static-cache",plugins:[new e.ExpirationPlugin({maxEntries:100,maxAgeSeconds:31536e3})]}),"GET"),e.registerRoute(/\.(?:js|css)$/,new e.StaleWhileRevalidate({cacheName:"static-resources",plugins:[new e.ExpirationPlugin({maxEntries:100,maxAgeSeconds:604800})]}),"GET")});
->>>>>>> refs/remotes/origin/main
-//# sourceMappingURL=sw.js.map
+importScripts('https://storage.googleapis.com/workbox-cdn/releases/6.5.4/workbox-sw.js');
+
+// 1. Matar cualquier Service Worker viejo inmediatamente
+self.skipWaiting();
+self.clients.claim();
+
+// Configuración de versión
+workbox.core.setCacheNameDetails({
+  prefix: 'oldy-funs',
+  suffix: 'v5-production',
+});
+
+// 2. Cachear Fuentes de Google (mejora velocidad visual)
+workbox.routing.registerRoute(
+  ({url}) => url.origin === 'https://fonts.googleapis.com' ||
+             url.origin === 'https://fonts.gstatic.com',
+  new workbox.strategies.StaleWhileRevalidate({
+    cacheName: 'google-fonts',
+  })
+);
+
+// 3. Cachear Imágenes (Logos, portadas) - CacheFirst
+workbox.routing.registerRoute(
+  ({request}) => request.destination === 'image',
+  new workbox.strategies.CacheFirst({
+    cacheName: 'images-cache',
+    plugins: [
+      new workbox.expiration.ExpirationPlugin({
+        maxEntries: 60,
+        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 Días
+      }),
+    ],
+  })
+);
+
+// 4. Archivos Estáticos (JS/CSS) - StaleWhileRevalidate
+workbox.routing.registerRoute(
+  ({request}) => 
+    request.destination === 'script' || 
+    request.destination === 'style',
+  new workbox.strategies.StaleWhileRevalidate({
+    cacheName: 'static-resources',
+  })
+);
+
+// 5. API Calls - NetworkFirst
+// Siempre intenta red. Si falla la red, NO devuelve fallback, simplemente falla (como debe ser).
+workbox.routing.registerRoute(
+  ({url}) => url.pathname.startsWith('/api/'),
+  new workbox.strategies.NetworkFirst({
+    cacheName: 'api-cache',
+    networkTimeoutSeconds: 10,
+    plugins: [
+      new workbox.expiration.ExpirationPlugin({
+        maxEntries: 50,
+        maxAgeSeconds: 5 * 60, // 5 minutos
+      }),
+    ],
+  })
+);
