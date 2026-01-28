@@ -15,7 +15,7 @@
   --popover: #ffffff;
   --popover-foreground: #212323;
 
-  --primary: #212323; /* Botones sólidos con el color del brand */
+  --primary: #009bdd; /* Botones sólidos con el color del brand */
   --primary-foreground: #ffffff;
 
   --secondary: #f4f4f5;
@@ -32,12 +32,12 @@
 
   --border: #e4e4e7;
   --input: #e4e4e7;
-  --ring: #212323;
+  --ring: #009bdd;
 
   --radius: 0.625rem;
 
   /* Gráficos en modo claro */
-  --chart-1: #212323;
+  --chart-1: #009bdd;
   --chart-2: #393c3c;
   --chart-3: #515454;
   --chart-4: #838383;
@@ -46,12 +46,12 @@
   /* Sidebar en modo claro */
   --sidebar: #f4f4f5;
   --sidebar-foreground: #212323;
-  --sidebar-primary: #212323;
+  --sidebar-primary: #009bdd;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e4e4e7;
   --sidebar-accent-foreground: #212323;
   --sidebar-border: #e4e4e7;
-  --sidebar-ring: #212323;
+  --sidebar-ring: #009bdd;
 }
 
 .dark {
@@ -66,8 +66,8 @@
   --popover: #212323;
   --popover-foreground: #ffffff;
 
-  --primary: #ffffff; /* Botones blancos para destacar en el fondo oscuro */
-  --primary-foreground: #212323;
+  --primary: #009bdd; /* Botones blancos para destacar en el fondo oscuro */
+  --primary-foreground: #ffffff;
 
   --secondary: #393c3c; /* Gris intermedio de tu paleta para elementos secundarios */
   --secondary-foreground: #ffffff;
@@ -83,10 +83,10 @@
 
   --border: #515454; /* EXACTO: Color de las letras del logo para los bordes */
   --input: #515454;
-  --ring: #838383;
+  --ring: #009bdd;
 
   /* Gráficos adaptados a la paleta */
-  --chart-1: #838383;
+  --chart-1: #009bdd;
   --chart-2: #515454;
   --chart-3: #393c3c;
   --chart-4: #ffffff;
@@ -95,12 +95,12 @@
   /* Sidebar oscura integrada */
   --sidebar: #212323;
   --sidebar-foreground: #ffffff;
-  --sidebar-primary: #ffffff;
-  --sidebar-primary-foreground: #212323;
+  --sidebar-primary: #009bdd;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #393c3c;
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #515454;
-  --sidebar-ring: #838383;
+  --sidebar-ring: #009bdd;
 }
 
 @theme inline {

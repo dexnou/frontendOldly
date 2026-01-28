@@ -101,30 +101,35 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
             {/* Logo pequeño en navbar */}
-            <div className="relative w-8 h-8 rounded-full overflow-hidden border border-border">
-              <Image 
-                src="/logo.png" 
-                alt="Oldy Fans" 
-                fill 
-                className="object-cover"
-                onError={(e) => {
-                  // Fallback si no está la imagen aún
-                  (e.currentTarget as HTMLImageElement).style.display = 'none'
-                }}
+            {/* Logo Mobile */}
+            <div className="relative w-28 h-28 md:hidden">
+              <Image
+                src="/oldyfunlogo2.svg"
+                alt="Oldy Fans"
+                fill
+                className="object-contain"
               />
-              <div className="absolute inset-0 bg-primary/20" /> 
             </div>
-            <span className="font-bold text-lg tracking-tight">Oldy Fans</span>
+
+            {/* Logo Desktop */}
+            <div className="relative w-32 h-14 hidden md:block">
+              <Image
+                src="/oldyfunlogo.svg"
+                alt="Oldy Fans"
+                fill
+                className="object-contain"
+              />
+            </div>
           </Link>
 
           <div className="flex items-center gap-3">
             {isLoggedIn ? (
               <>
                 <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-full border border-border">
-                   <User className="w-4 h-4 text-muted-foreground" />
-                   <span className="text-sm font-medium truncate max-w-[100px]">
-                     {user?.firstname || "Usuario"}
-                   </span>
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium truncate max-w-[100px]">
+                    {user?.firstname || "Usuario"}
+                  </span>
                 </div>
                 <Button
                   variant="ghost"
@@ -157,21 +162,21 @@ export default function HomePage() {
       <main className="flex-1 max-w-7xl mx-auto px-6 py-12 w-full">
         {/* Hero Section con Logo Grande */}
         <div className="flex flex-col items-center text-center mb-20">
-          <div className="relative w-32 h-32 md:w-40 md:h-40 mb-8 rounded-full shadow-2xl shadow-black/50 border-4 border-secondary overflow-hidden bg-secondary">
-             <Image 
-                src="/logo.png" 
-                alt="Oldy Funs Logo" 
-                fill 
-                className="object-cover"
-                priority
-              />
+          <div className="relative w-64 h-32 md:w-80 md:h-40 mb-8 transition-transform hover:scale-105 duration-300">
+            <Image
+              src="/oldyfunlogo.svg"
+              alt="Oldy Funs Logo"
+              fill
+              className="object-contain"
+              priority
+            />
           </div>
-          
+
           <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight">
             Music Box
           </h1>
           <p className="text-xl text-muted-foreground mb-10 max-w-xl mx-auto leading-relaxed">
-            Colecciones musicales interactivas. <br/>
+            Colecciones musicales interactivas. <br />
             Desbloquea, escanea y juega.
           </p>
 
@@ -179,15 +184,15 @@ export default function HomePage() {
             <Button
               onClick={handlePurchaseClick}
               size="lg"
-              className="px-8 h-12 rounded-full font-semibold shadow-xl shadow-primary/20 hover:scale-105 transition-transform"
+              className="px-8 h-12 rounded-full font-bold bg-white text-[#009bdd] border-2 border-[#009bdd] shadow-[0_0_15px_#009bdd] hover:shadow-[0_0_25px_#009bdd] hover:bg-white hover:scale-105 transition-all duration-300 animate-pulse"
             >
               <ShoppingCart className="w-5 h-5 mr-2" />
               {isLoggedIn ? "Tienda de Decks" : "Comprar Ahora"}
             </Button>
-            
+
             <Link href="/test/cards">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="lg"
                 className="px-6 h-12 rounded-full border-border bg-transparent hover:bg-secondary transition-colors"
               >

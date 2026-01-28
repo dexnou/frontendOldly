@@ -15,14 +15,14 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login } = useAuth()
-  
+
   // Estados
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [firstname, setFirstname] = useState("")
   const [lastname, setLastname] = useState("")
   const [whatsapp, setWhatsapp] = useState("")
-  
+
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
@@ -93,9 +93,9 @@ function LoginContent() {
 
       if (!res.ok) {
         if (data?.errorCode === 'EMAIL_EXISTS') {
-           setError("Este email ya está registrado.")
-           setLoading(false)
-           return
+          setError("Este email ya está registrado.")
+          setLoading(false)
+          return
         }
         throw new Error(data?.message || "Error al registrarse")
       }
@@ -121,15 +121,15 @@ function LoginContent() {
       <div className="w-full max-w-md">
         {/* Header con Logo */}
         <div className="text-center mb-8">
-           <div className="relative w-20 h-20 mx-auto mb-4 rounded-full border-2 border-border overflow-hidden bg-secondary">
-              <Image src="/logo.png" alt="Logo" fill className="object-cover" />
-           </div>
-           <h1 className="text-3xl font-bold tracking-tight text-foreground">
-             {isRegistering ? "Crear Cuenta" : "Bienvenido"}
-           </h1>
-           <p className="text-muted-foreground mt-2">
-             {isRegistering ? "Únete a la comunidad de Oldy Fans" : "Ingresa para acceder a tus decks"}
-           </p>
+          <div className="relative w-48 h-24 mx-auto mb-4 transition-transform hover:scale-105 duration-300">
+            <Image src="/oldyfunlogo.svg" alt="Logo" fill className="object-contain" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            {isRegistering ? "Crear Cuenta" : "Bienvenido"}
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            {isRegistering ? "Únete a la comunidad de Oldy Fans" : "Ingresa para acceder a tus decks"}
+          </p>
         </div>
 
         {/* Tarjeta de Formulario */}
@@ -163,7 +163,7 @@ function LoginContent() {
                   required
                 />
               </div>
-              
+
               <Button type="submit" className="w-full font-semibold" disabled={loading}>
                 {loading ? "Ingresando..." : "Iniciar Sesión"}
               </Button>
@@ -218,14 +218,14 @@ function LoginContent() {
                 className="bg-secondary border-input"
                 required
               />
-               <Input
+              <Input
                 type="tel"
                 placeholder="WhatsApp (Opcional)"
                 value={whatsapp}
                 onChange={(e) => setWhatsapp(e.target.value)}
                 className="bg-secondary border-input"
               />
-              
+
               <Button type="submit" className="w-full font-semibold bg-green-600 hover:bg-green-700 text-white" disabled={loading}>
                 {loading ? "Creando cuenta..." : "Registrarse Gratis"}
               </Button>

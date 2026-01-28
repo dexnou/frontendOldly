@@ -1,168 +1,76 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 
-console.log("[v0] Proxy initialized with BACKEND_URL:", BACKEND_URL)
-
-export async function GET(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  const { path } = await params
-  return proxyRequest(request, path, "GET")
-}
-
-export async function POST(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  const { path } = await params
-  return proxyRequest(request, path, "POST")
-}
-
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  const { path } = await params
-  return proxyRequest(request, path, "PUT")
-}
-
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  const { path } = await params
-  return proxyRequest(request, path, "DELETE")
-}
-
-async function proxyRequest(request: NextRequest, pathParts: string[], method: string) {
-  const path = pathParts.join("/")
-
-  // Siempre agregar el prefijo api/ porque todos los endpoints del backend están bajo /api
-  const fullPath = `api/${path}`
-  
-  // Preserve query parameters
-  const searchParams = request.nextUrl.searchParams.toString()
-  const queryString = searchParams ? `?${searchParams}` : ''
-  const url = `${BACKEND_URL}/${fullPath}${queryString}`
-
-  console.log("[v0] Proxying request to:", url)
-  console.log("[v0] Query params:", searchParams)
-  console.log("[v0] Request method:", method)
-  console.log("[v0] Request headers:", Object.fromEntries(request.headers.entries()))
-  console.log("[v0] BACKEND_URL:", BACKEND_URL)
-
+async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }, method: string) {
   try {
-    const headers = new Headers()
+    const { path } = await params;
+    const pathString = path.join("/");
+    
+    // Construct target URL (ensure no double slashes if BACKEND_URL ends with /)
+    const baseUrl = BACKEND_URL.replace(/\/$/, "");
+    const targetUrl = new URL(`${baseUrl}/api/${pathString}`);
+    
+    // Copy search params
+    request.nextUrl.searchParams.forEach((value, key) => {
+      targetUrl.searchParams.append(key, value);
+    });
 
-    // Agregar headers necesarios
-    headers.set("ngrok-skip-browser-warning", "true")
-    headers.set("User-Agent", "v0-proxy")
-    headers.set("Accept", "application/json")
+    console.log(`[Proxy] ${method} ${targetUrl.toString()}`);
 
-    const contentType = request.headers.get("content-type")
-    if (contentType) {
-      headers.set("Content-Type", contentType)
-    }
+    // Prepare headers
+    const headers = new Headers(request.headers);
+    headers.delete("host");
+    headers.delete("connection");
+    // Important: Content-Length should be handled by fetch based on body
+    headers.delete("content-length");
+    
+    // Forward ngrok warning skip
+    headers.set("ngrok-skip-browser-warning", "true");
 
-    const authorization = request.headers.get("authorization")
-    if (authorization) {
-      headers.set("Authorization", authorization)
-      console.log("[v0] Authorization header found:", authorization.substring(0, 20) + "...")
-    } else {
-      console.log("[v0] No authorization header found")
-    }
-
-    let body = undefined
-    if (method === "POST" || method === "PUT") {
-      body = await request.text()
-      console.log("[v0] Request body:", body)
-    }
-
-    console.log("[v0] Making fetch request with headers:", Object.fromEntries(headers.entries()))
-
-    // Test connection first
-    if (url.includes('localhost')) {
-      try {
-        const testResponse = await fetch(`${BACKEND_URL}/health`, { 
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
-        })
-        console.log("[v0] Backend health check status:", testResponse.status)
-      } catch (healthError) {
-        console.error("[v0] Backend health check failed:", healthError)
-        return NextResponse.json(
-          { 
-            error: "Backend server not available", 
-            details: `Cannot connect to ${BACKEND_URL}. Make sure the backend server is running on port 3001.`,
-            healthCheckError: healthError instanceof Error ? healthError.message : "Unknown error"
-          },
-          { status: 503 }
-        )
+    // Read body
+    let body: BodyInit | null = null;
+    if (method !== "GET" && method !== "HEAD") {
+      // arrayBuffer is safest for proxying
+      const blob = await request.blob();
+      if (blob.size > 0) {
+        body = blob;
       }
     }
 
-    const response = await fetch(url, {
+    const response = await fetch(targetUrl.toString(), {
       method,
       headers,
       body,
-    })
+      cache: "no-store",
+    });
 
-    console.log("[v0] Response status:", response.status)
-    console.log("[v0] Response headers:", Object.fromEntries(response.headers.entries()))
+    console.log(`[Proxy] Response status: ${response.status}`);
+
+    const responseBody = await response.arrayBuffer();
     
-    // Check if this is a file download based on Content-Disposition header
-    const contentDisposition = response.headers.get("Content-Disposition")
-    const responseContentType = response.headers.get("Content-Type")
-    
-    if (contentDisposition && contentDisposition.includes("attachment")) {
-      // This is a file download, preserve binary content
-      const buffer = await response.arrayBuffer()
-      
-      console.log("[v0] File download detected, size:", buffer.byteLength)
-      console.log("[v0] Content-Type:", responseContentType)
-      console.log("[v0] Content-Disposition:", contentDisposition)
-      
-      return new NextResponse(buffer, {
-        status: response.status,
-        headers: {
-          "Content-Type": responseContentType || "application/octet-stream",
-          "Content-Disposition": contentDisposition,
-        },
-      })
-    } else {
-      // Regular response, treat as text/json
-      const responseText = await response.text()
-      console.log("[v0] Regular response, Content-Type:", responseContentType)
-      console.log("[v0] Response body:", responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""))
-      
-      return new NextResponse(responseText, {
-        status: response.status,
-        headers: {
-          "Content-Type": responseContentType || "application/json",
-        },
-      })
-    }
+    // Prepare response headers
+    const responseHeaders = new Headers(response.headers);
+    responseHeaders.delete("content-encoding");
+    responseHeaders.delete("content-length");
+
+    return new NextResponse(responseBody, {
+      status: response.status,
+      headers: responseHeaders,
+    });
+
   } catch (error) {
-    console.error("[v0] Proxy error details:", error)
-    console.error("[v0] Error stack:", error instanceof Error ? error.stack : "No stack available")
-    console.error("[v0] Failed URL:", url)
-    console.error("[v0] Method:", method)
-    
-    // Check if it's a connection error
-    if (error instanceof Error) {
-      if (error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed')) {
-        return NextResponse.json(
-          { 
-            error: "Backend connection failed", 
-            details: `Cannot connect to backend at ${BACKEND_URL}. Please ensure the backend server is running on port 3001.`,
-            backendUrl: BACKEND_URL,
-            suggestion: "Try starting the backend server with 'npm run dev' in the Backend directory"
-          },
-          { status: 503 }
-        )
-      }
-    }
-    
+    console.error("[Proxy] Error:", error);
     return NextResponse.json(
-      { 
-        error: "Proxy request failed", 
-        details: error instanceof Error ? error.message : "Unknown error",
-        url: url,
-        method: method,
-        backendUrl: BACKEND_URL,
-        timestamp: new Date().toISOString()
-      },
-      { status: 500 },
-    )
+      { error: "Proxy connection failed", details: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    );
   }
 }
+
+export async function GET(req: NextRequest, ctx: any) { return proxy(req, ctx, "GET"); }
+export async function POST(req: NextRequest, ctx: any) { return proxy(req, ctx, "POST"); }
+export async function PUT(req: NextRequest, ctx: any) { return proxy(req, ctx, "PUT"); }
+export async function DELETE(req: NextRequest, ctx: any) { return proxy(req, ctx, "DELETE"); }
+export async function PATCH(req: NextRequest, ctx: any) { return proxy(req, ctx, "PATCH"); }
+

@@ -87,12 +87,12 @@ export const metadata: Metadata = {
   // --- ICONS & MANIFEST ---
   manifest: "/manifest.json",
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/oldyfunlogo.svg",
+    shortcut: "/oldyfunlogo.svg",
+    apple: "/oldyfunlogo.svg",
     other: {
       rel: "apple-touch-icon-precomposed",
-      url: "/logo.png",
+      url: "/oldyfunlogo.svg",
     },
   },
   appleWebApp: {
@@ -154,7 +154,7 @@ export default function RootLayout({
       "url": SITE_URL,
       "logo": {
         "@type": "ImageObject",
-        "url": `${SITE_URL}/logo.png`
+        "url": `${SITE_URL}/oldyfunlogo.svg`
       },
       "sameAs": [
         "https://www.instagram.com/oldyfuns/",
