@@ -13,7 +13,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:300
 
 function LoginContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const searchParams = useSearchParams();
   const { login } = useAuth()
 
   // Estados
