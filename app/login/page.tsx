@@ -24,7 +24,7 @@ function LoginContent() {
   const [whatsapp, setWhatsapp] = useState("")
 
   const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
 
   const redirectTo = searchParams.get("redirect") || "/"
