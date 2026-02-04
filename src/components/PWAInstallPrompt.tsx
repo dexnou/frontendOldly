@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -16,12 +17,14 @@ export default function PWAInstallPrompt() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
+  const { isLoggedIn } = useAuth(); // Obtener estado de login
+
   useEffect(() => {
     // Verificar si ya está instalado
     const checkIfInstalled = () => {
-      if (window.matchMedia('(display-mode: standalone)').matches || 
-          (window.navigator as any).standalone ||
-          document.referrer.includes('android-app://')) {
+      if (window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone ||
+        document.referrer.includes('android-app://')) {
         setIsInstalled(true);
       }
     };
@@ -32,7 +35,8 @@ export default function PWAInstallPrompt() {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setShowInstallPrompt(true);
+      // YA NO mostramos el prompt inmediatamente
+      // setShowInstallPrompt(true); 
     };
 
     // Escuchar cuando la app se instala
@@ -52,18 +56,31 @@ export default function PWAInstallPrompt() {
     };
   }, []);
 
+  // Nuevo efecto para controlar CUÁNDO mostrar el prompt
+  useEffect(() => {
+    if (deferredPrompt && isLoggedIn && !isInstalled) {
+      // Verificar si ya se mostró en esta sesión
+      const hasShownPrompt = sessionStorage.getItem('pwa_prompt_shown');
+
+      if (!hasShownPrompt) {
+        setShowInstallPrompt(true);
+        sessionStorage.setItem('pwa_prompt_shown', 'true');
+      }
+    }
+  }, [deferredPrompt, isLoggedIn, isInstalled]);
+
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
 
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    
+
     if (outcome === 'accepted') {
       console.log('[PWA] Usuario aceptó la instalación');
     } else {
       console.log('[PWA] Usuario rechazó la instalación');
     }
-    
+
     setDeferredPrompt(null);
     setShowInstallPrompt(false);
   };

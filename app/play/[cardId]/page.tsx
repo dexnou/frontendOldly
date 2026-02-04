@@ -62,7 +62,7 @@ export default function PlayPage() {
   const [gameStarted, setGameStarted] = useState(false)
   const [isGameOver, setIsGameOver] = useState(false)
   const [answered, setAnswered] = useState(false)
-  
+
   const [gameMode, setGameMode] = useState<'casual' | 'competitive' | 'competitive_turns' | null>(null)
   const [players, setPlayers] = useState<string[]>([''])
   const [gameId, setGameId] = useState<string | null>(null)
@@ -652,6 +652,7 @@ export default function PlayPage() {
                       <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-lg text-center mb-6">
                         <div className="flex justify-center mb-2"><CheckCircle2 className="w-8 h-8 text-emerald-500" /></div>
                         <h4 className="font-bold text-emerald-600 mb-2">Puntos Asignados</h4>
+                        <p className="text-emerald-600/80 font-medium mb-2">¡Escanee la siguiente carta!</p>
                         {scoreResult.game?.nextTurn && (
                           <p className="text-sm font-medium mt-2 pt-2 border-t border-emerald-500/20">
                             Siguiente turno: <span className="font-bold">{scoreResult.game.nextTurn.participantName}</span>

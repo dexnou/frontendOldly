@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import PurchaseModal from "@/components/PurchaseModal"
 import DeckCard from "@/components/features/decks/DeckCard"
-import { ShoppingCart, TestTube, LogOut, User } from "lucide-react"
+import { ShoppingCart, LogOut, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
@@ -47,7 +47,9 @@ export default function HomePage() {
       return
     }
 
-    router.push(`/deck/${deck.id}`)
+    // router.push(`/deck/${deck.id}`)
+    // Deshabilitado para que el usuario no vea las cartas
+    alert("¡Deck listo para jugar! Usa tus cartas físicas o digitales para escanear.")
   }
 
   const handlePurchaseSuccess = () => {
@@ -190,16 +192,7 @@ export default function HomePage() {
               {isLoggedIn ? "Tienda de Decks" : "Comprar Ahora"}
             </Button>
 
-            <Link href="/test/cards">
-              <Button
-                variant="outline"
-                size="lg"
-                className="px-6 h-12 rounded-full border-border bg-transparent hover:bg-secondary transition-colors"
-              >
-                <TestTube className="w-5 h-5 mr-2" />
-                Probar QR
-              </Button>
-            </Link>
+
           </div>
         </div>
 
