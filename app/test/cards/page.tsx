@@ -22,17 +22,24 @@ export default function TestCardsPage() {
   const { isLoggedIn, token } = useAuth();
   const [cards, setCards] = useState<TestCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => { fetchCards() }, [token]);
+  useEffect(() => { fetchCards(currentPage) }, [token, currentPage]);
 
-  const fetchCards = async () => {
+  const fetchCards = async (page = 1) => {
     setLoading(true);
     try {
       const headers: any = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(`${BACKEND_URL}/api/cards?limit=10`, { headers, credentials: "include" });
+      const res = await fetch(`${BACKEND_URL}/api/cards?limit=20&page=${page}`, { headers, credentials: "include" });
       const data = await res.json();
-      if (res.ok) setCards(data.data?.cards || []);
+      if (res.ok) {
+        setCards(data.data?.cards || []);
+        if (data.data.pagination) {
+          setTotalPages(data.data.pagination.totalPages);
+        }
+      }
     } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
@@ -52,7 +59,7 @@ export default function TestCardsPage() {
             <p className="text-muted-foreground mt-1">Entorno de pruebas para códigos QR.</p>
           </div>
           <Link href="/">
-             <Button variant="outline">← Volver</Button>
+            <Button variant="outline">← Volver</Button>
           </Link>
         </div>
 
@@ -71,13 +78,13 @@ export default function TestCardsPage() {
               </div>
 
               <div className="mb-4 flex flex-wrap gap-2">
-                 <span className="text-xs bg-secondary px-2 py-1 rounded border border-border">{card.deck.title}</span>
-                 <span className="text-xs bg-secondary px-2 py-1 rounded border border-border uppercase">{card.difficulty}</span>
-                 {isLoggedIn && (
-                    <span className={`text-xs px-2 py-1 rounded border ${card.hasAccess ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'}`}>
-                       {card.hasAccess ? 'Acceso OK' : 'Bloqueado'}
-                    </span>
-                 )}
+                <span className="text-xs bg-secondary px-2 py-1 rounded border border-border">{card.deck.title}</span>
+                <span className="text-xs bg-secondary px-2 py-1 rounded border border-border uppercase">{card.difficulty}</span>
+                {isLoggedIn && (
+                  <span className={`text-xs px-2 py-1 rounded border ${card.hasAccess ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'}`}>
+                    {card.hasAccess ? 'Acceso OK' : 'Bloqueado'}
+                  </span>
+                )}
               </div>
 
               <div className="space-y-3 bg-secondary/30 p-3 rounded-lg border border-border/50">
@@ -86,17 +93,42 @@ export default function TestCardsPage() {
                   <code className="block text-xs bg-background p-1.5 rounded border border-border text-foreground font-mono">{card.qrToken}</code>
                 </div>
                 <div className="flex gap-2">
-                   <Button size="sm" variant="secondary" className="flex-1 text-xs" onClick={() => copyToClipboard(card.qrUrl)}>Copiar URL</Button>
+                  <Button size="sm" variant="secondary" className="flex-1 text-xs" onClick={() => copyToClipboard(card.qrUrl)}>Copiar URL</Button>
                 </div>
               </div>
 
               <div className="flex gap-2 mt-4">
-                 <Link href={`/qr/${card.qrToken}`} className="flex-1"><Button variant="outline" className="w-full">Simular Scan</Button></Link>
-                 <Link href={`/play/${card.qrToken}`} className="flex-1"><Button className="w-full">Jugar</Button></Link>
+                <Link href={`/qr/${card.qrToken}`} className="flex-1"><Button variant="outline" className="w-full">Simular Scan</Button></Link>
+                <Link href={`/play/${card.qrToken}`} className="flex-1"><Button className="w-full">Jugar</Button></Link>
               </div>
             </div>
           ))}
         </div>
+
+        {/* Pagination Controls */}
+        {!loading && cards.length > 0 && (
+          <div className="flex items-center justify-center gap-4 mt-8 pb-8">
+            <Button
+              variant="outline"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="bg-card border-border text-foreground hover:bg-secondary"
+            >
+              Anterior
+            </Button>
+            <span className="text-muted-foreground bg-secondary px-3 py-1 rounded-md text-sm">
+              Página {currentPage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="bg-card border-border text-foreground hover:bg-secondary"
+            >
+              Siguiente
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

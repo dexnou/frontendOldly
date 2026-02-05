@@ -62,14 +62,16 @@ export default function AdminCardsPage() {
   const [decks, setDecks] = useState<Deck[]>([])
   const [cards, setCards] = useState<CardData[]>([])
   const [loadingCards, setLoadingCards] = useState(true)
-  
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+
   // Estados para UI
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingCardId, setEditingCardId] = useState<number | null>(null)
-  
+
   const [deletingCard, setDeletingCard] = useState<CardData | null>(null)
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null)
-  
+
   const [cardForm, setCardForm] = useState<CardForm>({
     deckId: null,
     artistName: "",
@@ -91,8 +93,8 @@ export default function AdminCardsPage() {
 
   useEffect(() => {
     fetchDecks()
-    fetchCards()
-  }, [])
+    fetchCards(currentPage)
+  }, [currentPage])
 
   const fetchDecks = async () => {
     try {
@@ -106,12 +108,16 @@ export default function AdminCardsPage() {
     }
   }
 
-  const fetchCards = async () => {
+  const fetchCards = async (page = 1) => {
     try {
-      const response = await fetch("/api/proxy/cards")
+      setLoadingCards(true)
+      const response = await fetch(`/api/proxy/cards?page=${page}&limit=20`)
       if (response.ok) {
         const data = await response.json()
         setCards(data.data.cards || [])
+        if (data.data.pagination) {
+          setTotalPages(data.data.pagination.totalPages)
+        }
       }
     } catch (error) {
       console.error("Error fetching cards:", error)
@@ -149,11 +155,11 @@ export default function AdminCardsPage() {
     try {
       const token = localStorage.getItem("adminToken")
       const isEditing = editingCardId !== null
-      
-      const url = isEditing 
+
+      const url = isEditing
         ? `/api/proxy/admin/cards/${editingCardId}`
         : "/api/proxy/admin/cards"
-      
+
       const method = isEditing ? "PUT" : "POST"
 
       const response = await fetch(url, {
@@ -169,7 +175,7 @@ export default function AdminCardsPage() {
         alert(isEditing ? "Carta actualizada exitosamente" : "Carta creada exitosamente")
         setIsFormOpen(false)
         resetForm()
-        await fetchCards()
+        await fetchCards(currentPage)
       } else {
         const error = await response.json()
         alert(error.message || `Error al ${isEditing ? 'actualizar' : 'crear'} la carta`)
@@ -198,7 +204,7 @@ export default function AdminCardsPage() {
         alert(data.message || "Carta eliminada exitosamente")
         setDeletingCard(null)
         setDeleteWarning(null)
-        await fetchCards()
+        await fetchCards(currentPage)
       } else {
         if (data.data?.suggestion) {
           setDeleteWarning(`${data.message}\n\nVeces jugada: ${data.data.timesPlayed || 0}`)
@@ -240,7 +246,7 @@ export default function AdminCardsPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold text-white">Gestión de Cartas</h1>
-            <Button 
+            <Button
               onClick={() => {
                 if (isFormOpen) {
                   setIsFormOpen(false)
@@ -249,7 +255,7 @@ export default function AdminCardsPage() {
                   setIsFormOpen(true)
                   resetForm()
                 }
-              }} 
+              }}
               className="bg-white text-black hover:bg-zinc-200"
             >
               {isFormOpen ? (
@@ -527,7 +533,7 @@ export default function AdminCardsPage() {
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          
+
                           <Button
                             size="sm"
                             variant="ghost"
@@ -553,7 +559,7 @@ export default function AdminCardsPage() {
                         <strong>Mazo:</strong> {card.deck.title}
                       </p>
                       <div className="flex justify-between items-center mt-2">
-                         <p className="text-sm text-zinc-400">
+                        <p className="text-sm text-zinc-400">
                           <strong>Dificultad:</strong> <span className="capitalize">{card.difficulty}</span>
                         </p>
                         <span className="text-xs bg-zinc-900 text-zinc-500 px-2 py-1 rounded border border-zinc-800 font-mono">
@@ -563,6 +569,31 @@ export default function AdminCardsPage() {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {!loadingCards && cards.length > 0 && (
+              <div className="flex items-center justify-center gap-4 mt-8 pb-8">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800"
+                >
+                  Anterior
+                </Button>
+                <span className="text-zinc-400">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800"
+                >
+                  Siguiente
+                </Button>
               </div>
             )}
           </div>
