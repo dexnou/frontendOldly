@@ -7,10 +7,10 @@ import { motion, AnimatePresence } from "framer-motion"
 import { ExternalLink, Share2, Copy, Twitter, Home, Music2, Users, Smartphone, Trophy, CheckCircle2, LogOut, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
+import ScannerModal from "@/components/ui/scanner-modal"
 import Image from "next/image"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
+
 
 interface GameCard {
   id: string
@@ -74,6 +74,7 @@ export default function PlayPage() {
   const [cardAlreadyPlayedByCurrent, setCardAlreadyPlayedByCurrent] = useState(false)
 
   const [showScoring, setShowScoring] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
   const [scoring, setScoring] = useState(false)
   const [scoreResult, setScoreResult] = useState<any>(null)
   const [participantAnswers, setParticipantAnswers] = useState<{ [key: string]: { songKnew: boolean, artistKnew: boolean, albumKnew: boolean } }>({})
@@ -86,6 +87,19 @@ export default function PlayPage() {
     artistKnew: false,
     albumKnew: false
   })
+
+  const handleScanSuccess = (url: string) => {
+    try {
+      setShowScanner(false)
+      if (url.startsWith("http")) {
+        window.location.href = url
+      } else {
+        window.location.href = url
+      }
+    } catch (e) {
+      setError("Código QR inválido")
+    }
+  }
 
   useEffect(() => {
     if (authLoading) return
@@ -210,7 +224,7 @@ export default function PlayPage() {
   const checkActiveCompetitiveGame = async (deckId: string) => {
     try {
       if (!token) return null
-      const res = await fetch(`/api/proxy/game/active-competitive/${deckId}`, {
+      const res = await fetch(`/api/proxy/game/active-competitive/${deckId}?t=${Date.now()}`, {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       })
       if (res.ok) {
@@ -346,12 +360,6 @@ export default function PlayPage() {
       else if (data.data.game?.currentTurnParticipantId) setCurrentTurnParticipantId(data.data.game.currentTurnParticipantId)
 
     } catch (err: any) { setError(err.message) } finally { setScoring(false) }
-  }
-
-  const handleParticipantCheckboxChange = (participantId: string, type: 'songKnew' | 'artistKnew' | 'albumKnew') => {
-    setParticipantAnswers(prev => ({
-      ...prev, [participantId]: { ...prev[participantId], [type]: !prev[participantId][type] }
-    }))
   }
 
   const getSpotifyEmbedUrl = (spotifyUrl: string | null) => {
@@ -620,27 +628,54 @@ export default function PlayPage() {
                     {(gameMode === 'competitive' || gameMode === 'competitive_turns') && showScoring && (
                       <div className="space-y-4">
                         <h4 className="font-semibold text-center border-b border-border pb-2 mb-4">Asignar Puntos</h4>
-                        {gameParticipants.filter(p => gameMode !== 'competitive_turns' || p.id == currentTurnParticipantId).map(p => (
-                          <div key={p.id} className="p-4 rounded-lg border border-border bg-background">
-                            <p className="font-bold mb-3">{p.name}</p>
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox id={`song-${p.id}`} checked={participantAnswers[p.id]?.songKnew} onCheckedChange={() => handleParticipantCheckboxChange(p.id, 'songKnew')} />
-                                <label htmlFor={`song-${p.id}`} className="text-sm cursor-pointer">Canción ({gameCard.deck.labelSong || "Nombre"})</label>
+                        {gameParticipants.filter(p => gameMode !== 'competitive_turns' || p.id == currentTurnParticipantId).map(p => {
+                          // Calcular puntaje actual basado en las respuestas guardadas
+                          const currentScore =
+                            (participantAnswers[p.id]?.songKnew ? 1 : 0) +
+                            (participantAnswers[p.id]?.artistKnew ? 1 : 0) +
+                            (participantAnswers[p.id]?.albumKnew ? 1 : 0);
+
+                          return (
+                            <div key={p.id} className="p-4 rounded-lg border border-border bg-background">
+                              <p className="font-bold mb-3">{p.name}</p>
+
+                              <div className="flex justify-between items-center gap-2">
+                                {[0, 1, 2, 3].map((score) => (
+                                  <Button
+                                    key={score}
+                                    type="button"
+                                    variant={currentScore === score ? "default" : "outline"}
+                                    onClick={() => {
+                                      // Lógica simplificada: Asignar flags según la cantidad de puntos
+                                      // 1 pto -> song, 2 pts -> song + artist, 3 pts -> song + artist + album
+                                      const newAnswers = {
+                                        songKnew: score >= 1,
+                                        artistKnew: score >= 2,
+                                        albumKnew: score >= 3
+                                      };
+                                      setParticipantAnswers(prev => ({
+                                        ...prev,
+                                        [p.id]: newAnswers
+                                      }));
+                                    }}
+                                    className={`flex-1 h-12 text-lg font-bold ${currentScore === score
+                                      ? "bg-primary text-primary-foreground ring-2 ring-offset-2 ring-primary"
+                                      : "text-muted-foreground hover:bg-secondary"
+                                      }`}
+                                  >
+                                    {score}
+                                  </Button>
+                                ))}
                               </div>
-                              <div className="flex items-center space-x-2">
-                                <Checkbox id={`artist-${p.id}`} checked={participantAnswers[p.id]?.artistKnew} onCheckedChange={() => handleParticipantCheckboxChange(p.id, 'artistKnew')} />
-                                <label htmlFor={`artist-${p.id}`} className="text-sm cursor-pointer">Artista ({gameCard.deck.labelArtist || "Nombre"})</label>
-                              </div>
-                              {revealedCard.album && (
-                                <div className="flex items-center space-x-2">
-                                  <Checkbox id={`album-${p.id}`} checked={participantAnswers[p.id]?.albumKnew} onCheckedChange={() => handleParticipantCheckboxChange(p.id, 'albumKnew')} />
-                                  <label htmlFor={`album-${p.id}`} className="text-sm cursor-pointer">Álbum ({gameCard.deck.labelAlbum || "Nombre"})</label>
-                                </div>
-                              )}
+                              <p className="text-xs text-center text-muted-foreground mt-2">
+                                {currentScore === 0 && "Sin puntos"}
+                                {currentScore === 1 && "1 Punto"}
+                                {currentScore === 2 && "2 Puntos"}
+                                {currentScore === 3 && "3 Puntos (Completo)"}
+                              </p>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         <Button className="w-full mt-4" onClick={handleSubmitScore} disabled={scoring}>
                           {scoring ? "Guardando..." : "Confirmar Puntos"}
                         </Button>
@@ -662,10 +697,22 @@ export default function PlayPage() {
                     )}
 
                     {(!showScoring || scoreResult) && (
-                      <Button variant="secondary" className="w-full mt-4" onClick={handlePlayAgain}>
-                        {gameMode === 'casual' ? "Siguiente Carta" : "Volver al Inicio"}
-                      </Button>
+                      <div className="space-y-3 mt-4">
+                        <Button
+                          className="w-full py-6 text-lg font-bold bg-primary hover:bg-primary/90 shadow-md transition-all hover:scale-[1.02]"
+                          onClick={() => setShowScanner(true)}
+                        >
+                          📷 Escanee la siguiente carta
+                        </Button>
+
+                        {gameMode === 'casual' && (
+                          <Button variant="ghost" className="w-full text-muted-foreground" onClick={handlePlayAgain}>
+                            Siguiente (Aleatoria)
+                          </Button>
+                        )}
+                      </div>
                     )}
+
                   </div>
                 )}
 
@@ -688,37 +735,45 @@ export default function PlayPage() {
         </div>
 
         {/* --- SIDEBAR LATERAL (Desktop) --- */}
-        {(gameMode === 'competitive' || gameMode === 'competitive_turns') && gameStarted && gameParticipants.length > 0 && !isGameOver && (
-          <div className="hidden lg:block w-80 sticky top-4 h-fit">
-            <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-              <h3 className="font-bold mb-4 flex items-center gap-2"><Trophy className="w-4 h-4" /> Tabla de Posiciones</h3>
-              <div className="space-y-3">
-                <AnimatePresence>
-                  {gameParticipants.sort((a, b) => b.totalPoints - a.totalPoints).map((p, i) => (
-                    <motion.div
-                      key={p.id}
-                      layout
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                      className={`flex justify-between items-center p-3 rounded-lg border text-sm ${p.id == currentTurnParticipantId ? 'bg-primary/5 border-primary ring-1 ring-primary' : 'bg-background border-border'
-                        }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground w-4">{i + 1}.</span>
-                        <span className="font-medium truncate max-w-[120px]">{p.name}</span>
-                      </div>
-                      <span className="font-bold">{p.totalPoints}</span>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-              <div className="mt-6 pt-4 border-t border-border">
-                <Button variant="destructive" size="sm" className="w-full" onClick={endCompetitiveSession}>Terminar Partida</Button>
+        {
+          (gameMode === 'competitive' || gameMode === 'competitive_turns') && gameStarted && gameParticipants.length > 0 && !isGameOver && (
+            <div className="hidden lg:block w-80 sticky top-4 h-fit">
+              <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+                <h3 className="font-bold mb-4 flex items-center gap-2"><Trophy className="w-4 h-4" /> Tabla de Posiciones</h3>
+                <div className="space-y-3">
+                  <AnimatePresence>
+                    {gameParticipants.sort((a, b) => b.totalPoints - a.totalPoints).map((p, i) => (
+                      <motion.div
+                        key={p.id}
+                        layout
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                        className={`flex justify-between items-center p-3 rounded-lg border text-sm ${p.id == currentTurnParticipantId ? 'bg-primary/5 border-primary ring-1 ring-primary' : 'bg-background border-border'
+                          }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground w-4">{i + 1}.</span>
+                          <span className="font-medium truncate max-w-[120px]">{p.name}</span>
+                        </div>
+                        <span className="font-bold">{p.totalPoints}</span>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+                <div className="mt-6 pt-4 border-t border-border">
+                  <Button variant="destructive" size="sm" className="w-full" onClick={endCompetitiveSession}>Terminar Partida</Button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )
+        }
 
-      </div>
-    </div>
+      </div >
+
+      <ScannerModal
+        isOpen={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleScanSuccess}
+      />
+    </div >
   )
 }

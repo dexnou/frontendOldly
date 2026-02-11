@@ -167,16 +167,13 @@ export default function HomePage() {
           <div className="relative w-64 h-32 md:w-80 md:h-40 mb-8 transition-transform hover:scale-105 duration-300">
             <Image
               src="/oldyfunlogo.svg"
-              alt="Oldy Funs Logo"
+              alt="Oldy Fans Logo"
               fill
               className="object-contain"
               priority
             />
           </div>
 
-          <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight">
-            Music Box
-          </h1>
           <p className="text-xl text-muted-foreground mb-10 max-w-xl mx-auto leading-relaxed">
             Colecciones musicales interactivas. <br />
             Desbloquea, escanea y juega.

@@ -88,12 +88,16 @@ export default function TestCardsPage() {
               </div>
 
               <div className="space-y-3 bg-secondary/30 p-3 rounded-lg border border-border/50">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1">Token</label>
-                  <code className="block text-xs bg-background p-1.5 rounded border border-border text-foreground font-mono">{card.qrToken}</code>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" className="flex-1 text-xs" onClick={() => copyToClipboard(card.qrUrl)}>Copiar URL</Button>
+                <div className="flex flex-col items-center justify-center p-2 bg-white rounded-lg">
+                  <img
+                    src={`${BACKEND_URL}/api/cards/${card.id}/qr-image`}
+                    alt={`QR for ${card.songName}`}
+                    className="w-32 h-32 object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://placehold.co/150x150?text=QR+Error';
+                    }}
+                  />
+                  <p className="text-[10px] text-black mt-1 font-mono">{card.qrToken}</p>
                 </div>
               </div>
 

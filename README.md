@@ -1,4 +1,4 @@
-# Oldy Funs Music Box - Frontend
+# Oldy Fans Music Box - Frontend
 
 Aplicación web frontend para el juego musical de trivias con sistema de puntuación, autenticación OAuth y Progressive Web App (PWA).
 
