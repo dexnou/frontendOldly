@@ -705,11 +705,7 @@ export default function PlayPage() {
                           📷 Escanee la siguiente carta
                         </Button>
 
-                        {gameMode === 'casual' && (
-                          <Button variant="ghost" className="w-full text-muted-foreground" onClick={handlePlayAgain}>
-                            Siguiente (Aleatoria)
-                          </Button>
-                        )}
+
                       </div>
                     )}
 

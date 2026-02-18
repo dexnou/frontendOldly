@@ -5,8 +5,6 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
-
 interface TestCard {
   id: string;
   songName: string;
@@ -32,15 +30,26 @@ export default function TestCardsPage() {
     try {
       const headers: any = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(`${BACKEND_URL}/api/cards?limit=20&page=${page}`, { headers, credentials: "include" });
+      // Usar el proxy de Next.js para evitar problemas de CORS y variables de entorno en producción
+      const res = await fetch(`/api/proxy/cards?limit=20&page=${page}`, { headers });
       const data = await res.json();
       if (res.ok) {
         setCards(data.data?.cards || []);
-        if (data.data.pagination) {
+        if (data.data?.pagination) {
           setTotalPages(data.data.pagination.totalPages);
         }
+      } else {
+        // Si falla, revertir la página para no desincronizar el estado
+        setCurrentPage(prev => prev !== page ? prev : page);
+        console.error("Error fetching cards:", data);
       }
-    } catch (error) { console.error(error); } finally { setLoading(false); }
+    } catch (error) {
+      // Revertir la página si hubo un error de red
+      setCurrentPage(page);
+      console.error("Network error:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -90,7 +99,7 @@ export default function TestCardsPage() {
               <div className="space-y-3 bg-secondary/30 p-3 rounded-lg border border-border/50">
                 <div className="flex flex-col items-center justify-center p-2 bg-white rounded-lg">
                   <img
-                    src={`${BACKEND_URL}/api/cards/${card.id}/qr-image`}
+                    src={`/api/proxy/cards/${card.id}/qr-image`}
                     alt={`QR for ${card.songName}`}
                     className="w-32 h-32 object-contain"
                     onError={(e) => {

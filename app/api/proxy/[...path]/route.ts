@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }, method: string) {
   try {
     const { path } = await params;
     const pathString = path.join("/");
-    
+
     // Construct target URL (ensure no double slashes if BACKEND_URL ends with /)
     const baseUrl = BACKEND_URL.replace(/\/$/, "");
     const targetUrl = new URL(`${baseUrl}/api/${pathString}`);
-    
+
     // Copy search params
     request.nextUrl.searchParams.forEach((value, key) => {
       targetUrl.searchParams.append(key, value);
@@ -24,7 +24,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     headers.delete("connection");
     // Important: Content-Length should be handled by fetch based on body
     headers.delete("content-length");
-    
+
     // Forward ngrok warning skip
     headers.set("ngrok-skip-browser-warning", "true");
 
@@ -48,7 +48,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     console.log(`[Proxy] Response status: ${response.status}`);
 
     const responseBody = await response.arrayBuffer();
-    
+
     // Prepare response headers
     const responseHeaders = new Headers(response.headers);
     responseHeaders.delete("content-encoding");
