@@ -21,7 +21,7 @@ function LoginContent() {
   const [password, setPassword] = useState("");
   const [firstname, setFirstname] = useState("");
   const [lastname, setLastname] = useState("");
-  const [whatsapp, setWhatsapp] = useState("")
+  const [whatsapp, setWhatsapp] = useState("");
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
